@@ -46,6 +46,7 @@ public class Job<T> implements RunnableFuture<T> {
     volatile boolean successfull = false;
     volatile boolean interupted = false;
     volatile boolean exceptionalEvent = false;
+    volatile boolean executed = false;
     AtomicInteger failedToStart = new AtomicInteger(0);
     AtomicBoolean scheduled = new AtomicBoolean(false);
     AtomicBoolean discarded = new AtomicBoolean(false);
@@ -82,7 +83,7 @@ public class Job<T> implements RunnableFuture<T> {
      *
      * @param call
      */
-    public Job( Consumer<? super Job<T>> call) {
+    public Job(Consumer<? super Job<T>> call) {
         this(UUID.randomUUID().toString(), call);
     }
 
@@ -348,8 +349,7 @@ public class Job<T> implements RunnableFuture<T> {
      * @return
      */
     public boolean isExecuted() {
-
-        return isScheduled() && (isRunning() || isDone());
+        return executed;
     }
 
     /**
@@ -447,7 +447,7 @@ public class Job<T> implements RunnableFuture<T> {
             return;
         }
         if (this.running.compareAndSet(false, true)) { // ensure only one running instance
-
+            this.executed = true;
             this.jobThread = Thread.currentThread();
             this.fireSystemEvent(new SystemJobEvent(SystemJobEventName.ON_EXECUTE, this));
             task.run();
@@ -515,12 +515,10 @@ public class Job<T> implements RunnableFuture<T> {
      *
      * @param event
      */
-    
-    
     public void fireEvent(JobEvent event) {
         Objects.requireNonNull(event);
         if (event instanceof SystemJobEvent) {
-            fireSystemEvent((SystemJobEvent)event);
+            fireSystemEvent((SystemJobEvent) event);
         } else {
             fireEvent(event, listeners.getOrDefault(event.getEventName(), null), false);
         }
@@ -544,7 +542,7 @@ public class Job<T> implements RunnableFuture<T> {
      * @param ignore wether to ignore exceptions
      */
     protected void fireEvent(JobEvent event, Collection<JobEventListener> collection, boolean ignore) {
-        if(collection == null){
+        if (collection == null) {
             return;
         }
         for (JobEventListener listener : collection) {

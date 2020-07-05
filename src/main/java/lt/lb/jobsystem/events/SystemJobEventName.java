@@ -61,7 +61,7 @@ public enum SystemJobEventName {
      */
     ON_EXCEPTIONAL_EVENT("onExceptionalEvent", false),
     /**
-     * When Job starts after being scheduled. (scheduled and (running or done))
+     * When Job starts actually starts and gets a Job thread. (running or done)
      */
     ON_EXECUTE("onExecute");
 
@@ -70,9 +70,9 @@ public enum SystemJobEventName {
      */
     public final String eventName;
     /**
-     * Wether this event can occur only once or multiple times per job (Using
+     * Wether this event can occur only once or multiple times per job using
      * the Job System, of course the user can fire any event any amount of
-     * times).
+     * times.
      */
     public final boolean oncePerJob;
 

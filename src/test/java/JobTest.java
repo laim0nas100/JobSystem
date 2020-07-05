@@ -10,6 +10,7 @@ import lt.lb.commons.threads.sync.WaitTime;
 import lt.lb.jobsystem.Dependencies;
 import lt.lb.jobsystem.Job;
 import lt.lb.jobsystem.JobExecutor;
+import lt.lb.jobsystem.ScheduledJobExecutor;
 import lt.lb.jobsystem.VoidJob;
 import lt.lb.jobsystem.events.SystemJobEventName;
 import org.junit.Test;
@@ -58,9 +59,10 @@ public class JobTest {
 
         jobList.forEach(executor::submit);
 
+        
+        executor.awaitJobEmptiness(1, TimeUnit.DAYS);
         executor.shutdown();
 
-        assert executor.awaitTermination(1, TimeUnit.HOURS);
         assert expected.equals(val);
     }
 

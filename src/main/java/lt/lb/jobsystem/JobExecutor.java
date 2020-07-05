@@ -11,6 +11,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
 
@@ -32,6 +33,8 @@ public class JobExecutor {
 
     protected volatile CompletableFuture awaitJobEmpty = new CompletableFuture();
     protected AtomicInteger rrc;
+    protected final int rescanThreshold;
+    protected AtomicBoolean rescanDept = new AtomicBoolean(false);
 
     /**
      *
@@ -49,7 +52,9 @@ public class JobExecutor {
      */
     public JobExecutor(int rescanThrottle, Executor exe) {
         this.exe = exe;
-        this.rrc = new AtomicInteger(Math.max(1, rescanThrottle));
+        this.rescanThreshold = Math.max(1, rescanThrottle);
+        this.rrc = new AtomicInteger(rescanThreshold);
+        
     }
 
     /**
@@ -73,6 +78,7 @@ public class JobExecutor {
             exe.execute(() -> rescanJobs0());
         } else {
             rrc.incrementAndGet();
+            rescanDept.set(true);
         }
     }
 
@@ -91,7 +97,6 @@ public class JobExecutor {
     }
 
     private void rescanJobs0() {
-
         Iterator<Job> iterator = jobs.iterator();
         while (iterator.hasNext()) {
             Job job = iterator.next();
@@ -104,7 +109,7 @@ public class JobExecutor {
                     job.fireSystemEvent(new SystemJobEvent(SystemJobEventName.ON_DISCARDED, job));
 
                 }
-            } else if (!job.isScheduled() && job.canRun()) {
+            } else if (!job.isExecuted()  && !job.isScheduled() && job.canRun()) {
                 if (job.scheduled.compareAndSet(false, true)) {
                     job.fireSystemEvent(new SystemJobEvent(SystemJobEventName.ON_SCHEDULED, job));
                     try {
@@ -119,7 +124,11 @@ public class JobExecutor {
             this.awaitJobEmpty.complete(null);
             this.awaitJobEmpty = new CompletableFuture();
         }
-        rrc.incrementAndGet();
+        if(rescanThreshold <= rrc.incrementAndGet()){
+            if(rescanDept.compareAndSet(true, false)){
+                addScanRequest();
+            }
+        }
 
     }
 
