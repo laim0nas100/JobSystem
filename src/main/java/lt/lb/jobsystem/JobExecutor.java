@@ -1,5 +1,6 @@
 package lt.lb.jobsystem;
 
+import java.util.Collection;
 import lt.lb.jobsystem.events.JobEventListener;
 import lt.lb.jobsystem.events.SystemJobEvent;
 import lt.lb.jobsystem.events.SystemJobEventName;
@@ -8,10 +9,10 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
-import lt.lb.commons.threads.sync.RepeatedRequestCollector;
-import lt.lb.commons.threads.sync.WaitTime;
 
 /**
  * Job executor with provided base executor. No cleanup is necessary. Job
@@ -25,12 +26,12 @@ public class JobExecutor {
     protected Executor exe;
 
     protected boolean isShutdown = false;
-    protected final ConcurrentLinkedDeque<Job> jobs = new ConcurrentLinkedDeque<>();
+    protected Collection<Job> jobs = new ConcurrentLinkedDeque<>();
 
-    protected final JobEventListener rescanJobs = l -> addScanRequest();
+    protected JobEventListener rescanJobs = l -> addScanRequest();
 
     protected volatile CompletableFuture awaitJobEmpty = new CompletableFuture();
-    protected RepeatedRequestCollector rrc;
+    protected AtomicInteger rrc;
 
     /**
      *
@@ -48,7 +49,7 @@ public class JobExecutor {
      */
     public JobExecutor(int rescanThrottle, Executor exe) {
         this.exe = exe;
-        this.rrc = new RepeatedRequestCollector(rescanThrottle, () -> rescanJobs0(), exe);
+        this.rrc = new AtomicInteger(Math.max(1, rescanThrottle));
     }
 
     /**
@@ -68,7 +69,11 @@ public class JobExecutor {
     }
 
     protected void addScanRequest() {
-        rrc.addRequest();
+        if (rrc.getAndDecrement() > 0) {
+            exe.execute(() -> rescanJobs0());
+        } else {
+            rrc.incrementAndGet();
+        }
     }
 
     /**
@@ -114,6 +119,7 @@ public class JobExecutor {
             this.awaitJobEmpty.complete(null);
             this.awaitJobEmpty = new CompletableFuture();
         }
+        rrc.incrementAndGet();
 
     }
 
@@ -152,16 +158,17 @@ public class JobExecutor {
      * Wait a given time for job list to be empty
      *
      * @param time
+     * @param unit
      * @return
      * @throws InterruptedException
      */
-    public boolean awaitJobEmptiness(WaitTime time)
+    public boolean awaitJobEmptiness(long time, TimeUnit unit)
             throws InterruptedException {
         if (isEmpty()) {
             return true;
         }
         try {
-            this.awaitJobEmpty.get(time.time, time.unit);
+            this.awaitJobEmpty.get(time, unit);
         } catch (ExecutionException | TimeoutException ex) {
             return false;
         }
@@ -172,16 +179,17 @@ public class JobExecutor {
      * If shutdown was fired, then wait for job list to be empty.
      *
      * @param time
+     * @param unit
      * @return
      * @throws InterruptedException
      * @throws IllegalStateException if shutdown was not called
      */
-    public boolean awaitTermination(WaitTime time)
+    public boolean awaitTermination(long time, TimeUnit unit)
             throws InterruptedException, IllegalStateException {
         if (!isShutdown) {
             throw new IllegalStateException("Shutdown was not called");
         }
-        return awaitJobEmptiness(time);
+        return awaitJobEmptiness(time, unit);
     }
 
 }

@@ -2,9 +2,12 @@
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
+import java.util.concurrent.TimeUnit;
 import lt.lb.commons.LineStringBuilder;
+import lt.lb.commons.func.unchecked.UnsafeFunction;
 import lt.lb.commons.misc.rng.RandomDistribution;
 import lt.lb.commons.threads.executors.FastExecutor;
+import lt.lb.commons.threads.executors.FastWaitingExecutor;
 import lt.lb.commons.threads.sync.WaitTime;
 import lt.lb.jobsystem.Dependencies;
 import lt.lb.jobsystem.Job;
@@ -19,6 +22,7 @@ import lt.lb.jobsystem.events.SystemJobEventName;
  */
 public class JobsTest {
 
+    static FastWaitingExecutor fastExe = new FastWaitingExecutor(1);
     public static class Log {
 
         public static void print(Object... obs) {
@@ -29,7 +33,10 @@ public class JobsTest {
             if (sb.length() > 0) {
                 sb.removeFromEnd(1);
             }
-            System.out.println(sb);
+            fastExe.execute(()->{
+                System.out.println(sb);
+            });
+            
 
         }
     }
@@ -37,7 +44,7 @@ public class JobsTest {
     static RandomDistribution rng = RandomDistribution.uniform(new Random());
 
     public static Job makeJob(String txt, List<Job> jobs) {
-        Job<Number> job = new Job<>(txt, j -> {
+        Job<Number> job = new Job<>(txt, (UnsafeFunction) j -> {
             Log.print("In execute", txt);
             Long nextLong = rng.nextLong(1000L, 2000L);
             Thread.sleep(nextLong);
@@ -80,14 +87,14 @@ public class JobsTest {
         ArrayList<Dependency> deps = new ArrayList<>();
 
         deps.add(() -> new Random().nextBoolean());
-        deps.add(()->{
-            Log.print("Dep check "+txt);
+        deps.add(() -> {
+            Log.print("Dep check " + txt);
             return true;
         });
-        
-        deps.stream().map(Dependencies::cacheOnComplete).forEach(d->{
-            job.addDependency(d);
-        });
+
+//        deps.stream().map(Dependencies::cacheOnComplete).forEach(d -> {
+//            job.addDependency(d);
+//        });
         jobs.add(job);
         return job;
     }
@@ -115,10 +122,8 @@ public class JobsTest {
 //        Jobs.chainBackward(f, JobEvent.ON_DONE, Jobs.resolveChildLeafs(j0));
 //        Dependencies.mutuallyExclusive(jobs);
         jobs.forEach(exe::submit);
-        
-        
 
-        exe.awaitJobEmptiness(WaitTime.ofDays(1));
+        exe.awaitJobEmptiness(1,TimeUnit.HOURS);
         exe.shutdown();
 
     }

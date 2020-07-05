@@ -1,6 +1,7 @@
 package lt.lb.jobsystem;
 
-import lt.lb.commons.func.unchecked.UnsafeConsumer;
+import java.util.function.Consumer;
+
 
 /**
  *
@@ -8,11 +9,11 @@ import lt.lb.commons.func.unchecked.UnsafeConsumer;
  */
 public class VoidJob extends Job<Void> {
 
-    public VoidJob(String uuid, UnsafeConsumer<Job<Void>> call) {
+    public VoidJob(String uuid, Consumer<Job<Void>> call) {
         super(uuid, call);
     }
 
-    public VoidJob(UnsafeConsumer<Job<Void>> call) {
+    public VoidJob(Consumer<Job<Void>> call) {
         super(call);
     }
     

@@ -3,6 +3,8 @@ package lt.lb.jobsystem.events;
 import java.util.concurrent.ExecutionException;
 
 /**
+ * Default Job System events. Job System uses ON_DONE and ON_FAILED_TO_START
+ * listeners to rescan for new jobs. The rest can be listened to by users.
  *
  * @author laim0nas100
  */
@@ -68,7 +70,9 @@ public enum SystemJobEventName {
      */
     public final String eventName;
     /**
-     * Wether this event can occur only once or multiple times per job.
+     * Wether this event can occur only once or multiple times per job (Using
+     * the Job System, of course the user can fire any event any amount of
+     * times).
      */
     public final boolean oncePerJob;
 

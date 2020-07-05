@@ -10,11 +10,13 @@
             <groupId>${lbcommonsdir}</groupId>
             <artifactId>commonslb-core</artifactId>
             <version>${lbcommonsver}</version>
+            <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>${lbcommonsdir}</groupId>
             <artifactId>commonslb-threads</artifactId>
             <version>${lbcommonsver}</version>
+            <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>junit</groupId>
@@ -26,10 +28,10 @@
     </dependencies>
     <properties>
         
-<!--        <lbcommonsdir>lt.lb.commons</lbcommonsdir>
-        <lbcommonsver>local-jar</lbcommonsver>-->
-        <lbcommonsdir>com.github.laim0nas100.Commons</lbcommonsdir>
-        <lbcommonsver>d6862716957cbab494b1ba9fa56b7c1e9eb01969</lbcommonsver>
+        <lbcommonsdir>lt.lb.commons</lbcommonsdir>
+        <lbcommonsver>local-jar</lbcommonsver>
+        <!--<lbcommonsdir>com.github.laim0nas100.Commons</lbcommonsdir>-->
+        <!--<lbcommonsver>d6862716957cbab494b1ba9fa56b7c1e9eb01969</lbcommonsver>-->
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <maven.compiler.source>1.8</maven.compiler.source>
         <maven.compiler.target>1.8</maven.compiler.target>

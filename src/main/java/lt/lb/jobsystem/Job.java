@@ -23,12 +23,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import lt.lb.commons.EmptyImmutableList;
-import lt.lb.commons.F;
-import lt.lb.commons.func.unchecked.UnsafeConsumer;
-import lt.lb.commons.func.unchecked.UnsafeFunction;
-import lt.lb.commons.func.unchecked.UnsafeSupplier;
-import lt.lb.commons.threads.Futures;
+import java.util.function.Consumer;
+import java.util.function.Function;
 
 /**
  *
@@ -66,7 +62,7 @@ public class Job<T> implements RunnableFuture<T> {
      * @param uuid
      * @param call
      */
-    public Job(String uuid, UnsafeConsumer<? super Job<T>> call) {
+    public Job(String uuid, Consumer<? super Job<T>> call) {
         this.uuid = uuid;
         task = new FutureTask<>(() -> call.accept(this), null);
     }
@@ -76,10 +72,9 @@ public class Job<T> implements RunnableFuture<T> {
      * @param uuid
      * @param call
      */
-    public Job(String uuid, UnsafeFunction<? super Job<T>, ? extends T> call) {
+    public Job(String uuid, Function<? super Job<T>, ? extends T> call) {
         this.uuid = uuid;
-        UnsafeSupplier<T> sup = () -> call.applyUnsafe(this);
-        task = Futures.ofCallable(sup);
+        task = new FutureTask<>(() -> call.apply(this));
 
     }
 
@@ -87,7 +82,7 @@ public class Job<T> implements RunnableFuture<T> {
      *
      * @param call
      */
-    public Job(UnsafeConsumer<? super Job<T>> call) {
+    public Job( Consumer<? super Job<T>> call) {
         this(UUID.randomUUID().toString(), call);
     }
 
@@ -95,7 +90,7 @@ public class Job<T> implements RunnableFuture<T> {
      *
      * @param call
      */
-    public Job(UnsafeFunction<? super Job<T>, ? extends T> call) {
+    public Job(Function<? super Job<T>, ? extends T> call) {
         this(UUID.randomUUID().toString(), call);
     }
 
@@ -520,13 +515,14 @@ public class Job<T> implements RunnableFuture<T> {
      *
      * @param event
      */
+    
+    
     public void fireEvent(JobEvent event) {
-
         Objects.requireNonNull(event);
         if (event instanceof SystemJobEvent) {
-            fireSystemEvent(F.cast(event));
+            fireSystemEvent((SystemJobEvent)event);
         } else {
-            fireEvent(event, listeners.getOrDefault(event.getEventName(), EmptyImmutableList.getInstance()), false);
+            fireEvent(event, listeners.getOrDefault(event.getEventName(), null), false);
         }
 
     }
@@ -538,7 +534,7 @@ public class Job<T> implements RunnableFuture<T> {
     public void fireSystemEvent(SystemJobEvent event) {
 
         Objects.requireNonNull(event);
-        fireEvent(event, systemListeners.getOrDefault(event.enumName, EmptyImmutableList.getInstance()), false);
+        fireEvent(event, systemListeners.getOrDefault(event.enumName, null), false);
     }
 
     /**
@@ -548,12 +544,15 @@ public class Job<T> implements RunnableFuture<T> {
      * @param ignore wether to ignore exceptions
      */
     protected void fireEvent(JobEvent event, Collection<JobEventListener> collection, boolean ignore) {
+        if(collection == null){
+            return;
+        }
         for (JobEventListener listener : collection) {
             try {
                 listener.onEvent(event);
             } catch (Throwable th) {
                 if (!ignore) {
-                    Collection<JobEventListener> onExcpetionalEvent = systemListeners.getOrDefault(SystemJobEventName.ON_EXCEPTIONAL_EVENT, EmptyImmutableList.getInstance());
+                    Collection<JobEventListener> onExcpetionalEvent = systemListeners.getOrDefault(SystemJobEventName.ON_EXCEPTIONAL_EVENT, null);
                     exceptionalEvent = true;
                     SystemJobEvent systemJobEvent = new SystemJobEvent(SystemJobEventName.ON_EXCEPTIONAL_EVENT, event.getCreator(), th);
                     fireEvent(systemJobEvent, onExcpetionalEvent, true);

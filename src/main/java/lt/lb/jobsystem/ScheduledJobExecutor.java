@@ -3,7 +3,7 @@ package lt.lb.jobsystem;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
-import lt.lb.commons.threads.sync.WaitTime;
+import java.util.concurrent.TimeUnit;
 
 /**
  * * Job executor with provided base executor. Cleanup (shutdown) is necessary.
@@ -20,18 +20,18 @@ public class ScheduledJobExecutor extends JobExecutor {
      * @param exe Main executor
      */
     public ScheduledJobExecutor(Executor exe) {
-        this(WaitTime.ofSeconds(1), 2, exe);
+        this(1, TimeUnit.SECONDS, 3, exe);
     }
 
     /**
+     * @param time rescan period time
+     * @param unit rescan period unit
      * @param rescanThrottle how many concurrent rescan jobs can be happening
      * @param exe Main executor
-     * @param rescan WaitTime to set the scheduler rescan period.
      */
-    public ScheduledJobExecutor(WaitTime rescan, int rescanThrottle, Executor exe) {
+    public ScheduledJobExecutor(long time, TimeUnit unit, int rescanThrottle, Executor exe) {
         super(rescanThrottle, exe);
-
-        service.scheduleAtFixedRate(() -> rescanJobs(), rescan.time, rescan.time, rescan.unit);
+        service.scheduleAtFixedRate(() -> rescanJobs(), time, time, unit);
     }
 
     @Override

@@ -1,6 +1,6 @@
 
-
 import java.util.ArrayList;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import lt.lb.commons.containers.values.LongValue;
 import lt.lb.commons.misc.rng.FastRandom;
@@ -22,13 +22,12 @@ public class JobTest {
 
     public static Job<Void> incrementJob(LongValue val, Integer increments) {
 
-        
-        return new VoidJob(j ->{
+        return new VoidJob(j -> {
             for (int i = 0; i < increments; i++) {
                 val.incrementAndGet();
             }
         });
-        
+
 //        return new Job<>((Job<Void> j) -> {
 //            for (int i = 0; i < increments; i++) {
 //                val.incrementAndGet();
@@ -42,9 +41,9 @@ public class JobTest {
         RandomDistribution rng = RandomDistribution.uniform(new FastRandom());
 
         ArrayList<Job> jobList = new ArrayList<>();
-        
+
         ArrayList<Integer> increments = new ArrayList<>(jobs);
-        for(int i = 0; i < jobs; i++){
+        for (int i = 0; i < jobs; i++) {
             increments.add(rng.nextInt(100, 500));
         }
 
@@ -61,7 +60,7 @@ public class JobTest {
 
         executor.shutdown();
 
-        assert executor.awaitTermination(WaitTime.ofHours(1));
+        assert executor.awaitTermination(1, TimeUnit.HOURS);
         assert expected.equals(val);
     }
 
