@@ -55,7 +55,7 @@ public class Job<T> implements RunnableFuture<T> {
     Job canceledParent;
     Job canceledRoot;
 
-    final FutureTask<T> task;
+    protected final FutureTask<T> task;
     Thread jobThread;
 
     /**
