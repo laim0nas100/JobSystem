@@ -450,7 +450,7 @@ public class Job<T> implements RunnableFuture<T> {
             this.executed = true;
             this.jobThread = Thread.currentThread();
             this.fireSystemEvent(new SystemJobEvent(SystemJobEventName.ON_EXECUTE, this));
-            task.run();
+            runTask();
             ExecutionException ex = null;
             try {
                 task.get();
@@ -481,6 +481,14 @@ public class Job<T> implements RunnableFuture<T> {
 
         }
 
+    }
+
+    /**
+     * You can overwrite to run actual task on a different executor, override
+     * with caution.
+     */
+    protected void runTask() {
+        task.run();
     }
 
     /**
