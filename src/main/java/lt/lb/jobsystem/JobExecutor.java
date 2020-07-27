@@ -54,7 +54,7 @@ public class JobExecutor {
         this.exe = exe;
         this.rescanThreshold = Math.max(1, rescanThrottle);
         this.rrc = new AtomicInteger(rescanThreshold);
-        
+
     }
 
     /**
@@ -71,6 +71,26 @@ public class JobExecutor {
         jobs.add(job);
 
         addScanRequest();
+    }
+
+    /**
+     * Submits all jobs
+     *
+     * @param jobs
+     */
+    public void submitAll(Iterable<Job> jobs) {
+        jobs.forEach(this::submit);
+    }
+
+    /**
+     * Submits all jobs
+     *
+     * @param jobs
+     */
+    public void submitAll(Job... jobs) {
+        for (Job job : jobs) {
+            this.submit(job);
+        }
     }
 
     protected void addScanRequest() {
@@ -109,7 +129,7 @@ public class JobExecutor {
                     job.fireSystemEvent(new SystemJobEvent(SystemJobEventName.ON_DISCARDED, job));
 
                 }
-            } else if (!job.isExecuted()  && !job.isScheduled() && job.canRun()) {
+            } else if (!job.isExecuted() && !job.isScheduled() && job.canRun()) {
                 if (job.scheduled.compareAndSet(false, true)) {
                     job.fireSystemEvent(new SystemJobEvent(SystemJobEventName.ON_SCHEDULED, job));
                     try {
@@ -124,8 +144,8 @@ public class JobExecutor {
             this.awaitJobEmpty.complete(null);
             this.awaitJobEmpty = new CompletableFuture();
         }
-        if(rescanThreshold <= rrc.incrementAndGet()){
-            if(rescanDept.compareAndSet(true, false)){
+        if (rescanThreshold <= rrc.incrementAndGet()) {
+            if (rescanDept.compareAndSet(true, false)) {
                 addScanRequest();
             }
         }
