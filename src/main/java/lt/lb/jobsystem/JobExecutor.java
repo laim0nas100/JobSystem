@@ -1,5 +1,6 @@
 package lt.lb.jobsystem;
 
+import java.util.Arrays;
 import java.util.Collection;
 import lt.lb.jobsystem.events.JobEventListener;
 import lt.lb.jobsystem.events.SystemJobEvent;
@@ -69,7 +70,23 @@ public class JobExecutor {
         job.addListener(SystemJobEventName.ON_DONE, rescanJobs);
         job.addListener(SystemJobEventName.ON_FAILED_TO_START, rescanJobs);
         jobs.add(job);
+        addScanRequest();
+    }
 
+    /**
+     * Submits all jobs
+     *
+     * @param iter
+     */
+    public void submitAll(Iterable<Job> iter) {
+        if (isShutdown) {
+            throw new IllegalStateException("Shutdown was called");
+        }
+        for (Job job : iter) {
+            job.addListener(SystemJobEventName.ON_DONE, rescanJobs);
+            job.addListener(SystemJobEventName.ON_FAILED_TO_START, rescanJobs);
+            jobs.add(job);
+        }
         addScanRequest();
     }
 
@@ -78,19 +95,8 @@ public class JobExecutor {
      *
      * @param jobs
      */
-    public void submitAll(Iterable<Job> jobs) {
-        jobs.forEach(this::submit);
-    }
-
-    /**
-     * Submits all jobs
-     *
-     * @param jobs
-     */
     public void submitAll(Job... jobs) {
-        for (Job job : jobs) {
-            this.submit(job);
-        }
+        submitAll(Arrays.asList(jobs));
     }
 
     protected void addScanRequest() {
