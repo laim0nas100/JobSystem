@@ -51,7 +51,7 @@ public abstract class Dependencies {
      */
     public static <T> JobDependency<T> whileNotExecuting(Job<T> job) {
 
-        return ofJob(job, j -> j.isDone() || (!j.isScheduled() && !j.isRunning()));
+        return ofJob(job, j -> j.isDiscardedOrDone()|| (!j.isScheduled() && !j.isRunning()));
     }
 
     /**

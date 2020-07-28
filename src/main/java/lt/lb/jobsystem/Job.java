@@ -50,6 +50,7 @@ public class Job<T> implements RunnableFuture<T> {
     AtomicInteger failedToStart = new AtomicInteger(0);
     AtomicBoolean scheduled = new AtomicBoolean(false);
     AtomicBoolean discarded = new AtomicBoolean(false);
+    AtomicBoolean repeatedDiscard = new AtomicBoolean(false);
     AtomicBoolean running = new AtomicBoolean(false);
 
     Job canceledParent;
@@ -221,6 +222,18 @@ public class Job<T> implements RunnableFuture<T> {
         }
         return true;
     }
+    
+    public boolean isPossibleToRun(){
+        if(this.isDiscardedOrDone()){
+            return false;
+        }
+        for(Dependency dep:this.doBefore){
+            if(!dep.isPossible()){
+                return false;
+            }
+        }
+        return true;
+    }
 
     /**
      * {@link lt.lb.jobsystem.events.SystemJobEventName#ON_CANCEL}
@@ -293,6 +306,14 @@ public class Job<T> implements RunnableFuture<T> {
     public boolean isAborted() {
         return isCancelled() && !isExecuted();
     }
+    
+    /**
+     * Returns if discarded or done.
+     * @return 
+     */
+    public boolean isDiscardedOrDone(){
+        return isDiscarded() || isDone();
+    }
 
     /**
      * {@link lt.lb.jobsystem.events.SystemJobEventName#ON_FAILED_TO_START}
@@ -342,6 +363,8 @@ public class Job<T> implements RunnableFuture<T> {
     public boolean isDone() {
         return (isCancelled() || isExceptional() || isSuccessfull());
     }
+    
+    
 
     /**
      * {@link lt.lb.jobsystem.events.SystemJobEventName#ON_EXECUTE}

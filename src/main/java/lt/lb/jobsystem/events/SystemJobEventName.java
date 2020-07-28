@@ -33,7 +33,7 @@ public enum SystemJobEventName {
     ON_EXCEPTIONAL("onExceptional"),
     /**
      * When Job becomes discarded by {@link lt.lb.jobsystem.JobExecutor}. Job
-     * can be discarded when it's done.
+     * can be discarded when it's done some of its dependencies becomes impossible.
      */
     ON_DISCARDED("onDiscarded"),
     /**

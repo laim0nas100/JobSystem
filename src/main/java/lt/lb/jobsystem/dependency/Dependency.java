@@ -13,4 +13,13 @@ public interface Dependency {
      * @return
      */
     public boolean isCompleted();
+    
+    
+    /**
+     * Wether dependency is possible to be satisfied
+     * @return 
+     */
+    public default boolean isPossible(){
+        return true;
+    }
 }

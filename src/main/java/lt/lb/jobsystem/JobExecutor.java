@@ -129,11 +129,16 @@ public class JobExecutor {
             if (job == null) {
                 continue;
             }
-            if (job.isDone()) {
+            if (!job.isPossibleToRun()) {
                 if (job.discarded.compareAndSet(false, true)) {
                     iterator.remove();
                     job.fireSystemEvent(new SystemJobEvent(SystemJobEventName.ON_DISCARDED, job));
-
+                }else{ // job was allready discarded but reinserted so don't fire event again
+                    if(job.repeatedDiscard.compareAndSet(false, true)){ // thread safety
+                        iterator.remove();
+                        job.repeatedDiscard.set(false);
+                    }
+                    
                 }
             } else if (!job.isExecuted() && !job.isScheduled() && job.canRun()) {
                 if (job.scheduled.compareAndSet(false, true)) {
@@ -144,7 +149,7 @@ public class JobExecutor {
                     } catch (Throwable t) {
                     }
                 }
-            }
+            } 
         }
         if (isEmpty()) {
             this.awaitJobEmpty.complete(null);
