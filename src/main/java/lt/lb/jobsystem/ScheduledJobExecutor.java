@@ -6,7 +6,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 /**
- * * Job executor with provided base executor. Cleanup (shutdown) is necessary.
+ * Job executor with provided base executor. Cleanup (shutdown) is necessary.
  * Job scheduling uses same provided executor (usually the same work thread
  * after job was finished). Periodically (1 second by default) rescans jobs.
  *
