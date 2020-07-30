@@ -38,7 +38,20 @@ public class ScheduledJobExecutor extends JobExecutor {
     public void shutdown() {
         super.shutdown();
         service.shutdown();
-
+        
     }
 
+    @Override
+    public boolean shutdownAndWait(long time, TimeUnit unit) throws InterruptedException {
+        
+        super.shutdown();
+        boolean awaited = awaitTermination(time, unit);
+        if(awaited){
+            service.shutdown();
+        }
+        return awaited;
+    }
+    
+   
+    
 }

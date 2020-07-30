@@ -231,5 +231,17 @@ public class JobExecutor {
         }
         return awaitJobEmptiness(time, unit);
     }
+    
+    /**
+     * Calls shutdown and waits for executor to finish. Should be go-to method for closing.
+     * @param time
+     * @param unit
+     * @return
+     * @throws InterruptedException 
+     */
+    public boolean shutdownAndWait(long time, TimeUnit unit) throws InterruptedException{
+        shutdown();
+        return awaitTermination(time, unit);
+    }
 
 }
