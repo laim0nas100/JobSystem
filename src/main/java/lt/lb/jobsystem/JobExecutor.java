@@ -36,6 +36,7 @@ public class JobExecutor {
     protected AtomicInteger rrc;
     protected final int rescanThreshold;
     protected AtomicBoolean rescanDept = new AtomicBoolean(false);
+    protected AtomicBoolean reasigningAwaitFuture = new AtomicBoolean(false);
 
     /**
      *
@@ -133,12 +134,12 @@ public class JobExecutor {
                 if (job.discarded.compareAndSet(false, true)) {
                     iterator.remove();
                     job.fireSystemEvent(new SystemJobEvent(SystemJobEventName.ON_DISCARDED, job));
-                }else{ // job was allready discarded but reinserted so don't fire event again
-                    if(job.repeatedDiscard.compareAndSet(false, true)){ // thread safety
+                } else { // job was allready discarded but reinserted so don't fire event again
+                    if (job.repeatedDiscard.compareAndSet(false, true)) { // thread safety
                         iterator.remove();
                         job.repeatedDiscard.set(false);
                     }
-                    
+
                 }
             } else if (!job.isExecuted() && !job.isScheduled() && job.canRun()) {
                 if (job.scheduled.compareAndSet(false, true)) {
@@ -149,11 +150,15 @@ public class JobExecutor {
                     } catch (Throwable t) {
                     }
                 }
-            } 
+            }
         }
         if (isEmpty()) {
-            this.awaitJobEmpty.complete(null);
-            this.awaitJobEmpty = new CompletableFuture();
+            if (reasigningAwaitFuture.compareAndSet(false, true)) {
+                this.awaitJobEmpty.complete(null);
+                this.awaitJobEmpty = new CompletableFuture();
+                reasigningAwaitFuture.set(false);
+            }
+
         }
         if (rescanThreshold <= rrc.incrementAndGet()) {
             if (rescanDept.compareAndSet(true, false)) {
@@ -231,15 +236,17 @@ public class JobExecutor {
         }
         return awaitJobEmptiness(time, unit);
     }
-    
+
     /**
-     * Calls shutdown and waits for executor to finish. Should be go-to method for closing.
+     * Calls shutdown and waits for executor to finish. Should be go-to method
+     * for closing.
+     *
      * @param time
      * @param unit
      * @return
-     * @throws InterruptedException 
+     * @throws InterruptedException
      */
-    public boolean shutdownAndWait(long time, TimeUnit unit) throws InterruptedException{
+    public boolean shutdownAndWait(long time, TimeUnit unit) throws InterruptedException {
         shutdown();
         return awaitTermination(time, unit);
     }
