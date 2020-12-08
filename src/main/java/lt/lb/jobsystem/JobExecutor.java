@@ -79,7 +79,7 @@ public class JobExecutor {
      *
      * @param iter
      */
-    public void submitAll(Iterable<Job> iter) {
+    public void submitAll(Iterable<? extends Job> iter) {
         if (isShutdown) {
             throw new IllegalStateException("Shutdown was called");
         }
