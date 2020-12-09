@@ -28,8 +28,6 @@ import java.util.function.Function;
 
 /**
  *
- *
- *
  * @author laim0nas100
  * @param <T>
  */
