@@ -65,7 +65,7 @@ public class Job<T> implements RunnableFuture<T> {
      * @param call
      */
     public Job(String uuid, Consumer<? super Job<T>> call) {
-        this.uuid = uuid;
+        this.uuid = Objects.requireNonNull(uuid);
         task = new FutureTask<>(() -> call.accept(this), null);
     }
 
@@ -75,7 +75,7 @@ public class Job<T> implements RunnableFuture<T> {
      * @param call
      */
     public Job(String uuid, Function<? super Job<T>, ? extends T> call) {
-        this.uuid = uuid;
+        this.uuid = Objects.requireNonNull(uuid);
         task = new FutureTask<>(() -> call.apply(this));
 
     }
@@ -216,19 +216,19 @@ public class Job<T> implements RunnableFuture<T> {
             return false;
         }
         for (Dependency dep : this.doBefore) {
-            if (!dep.isCompleted()) {
+            if (!dep.isCompleted(this)) {
                 return false;
             }
         }
         return true;
     }
-    
-    public boolean isPossibleToRun(){
-        if(this.isDiscardedOrDone()){
+
+    public boolean isPossibleToRun() {
+        if (this.isDiscardedOrDone()) {
             return false;
         }
-        for(Dependency dep:this.doBefore){
-            if(!dep.isPossible()){
+        for (Dependency dep : this.doBefore) {
+            if (!dep.isPossible()) {
                 return false;
             }
         }
@@ -306,12 +306,13 @@ public class Job<T> implements RunnableFuture<T> {
     public boolean isAborted() {
         return isCancelled() && !isExecuted();
     }
-    
+
     /**
      * Returns if discarded or done.
-     * @return 
+     *
+     * @return
      */
-    public boolean isDiscardedOrDone(){
+    public boolean isDiscardedOrDone() {
         return isDiscarded() || isDone();
     }
 
@@ -363,8 +364,6 @@ public class Job<T> implements RunnableFuture<T> {
     public boolean isDone() {
         return (isCancelled() || isExceptional() || isSuccessfull());
     }
-    
-    
 
     /**
      * {@link lt.lb.jobsystem.events.SystemJobEventName#ON_EXECUTE}

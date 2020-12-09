@@ -70,7 +70,7 @@ public class SystemJobDependency extends AbstractJobDependency {
     }
 
     @Override
-    public boolean isCompleted() {
+    public boolean isCompleted(Job caller) {
         switch (enumName) {
             case ON_FAILED_TO_START: {
                 return job.getFailedToStart() > 0;

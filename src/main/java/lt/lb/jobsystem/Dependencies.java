@@ -23,9 +23,9 @@ public abstract class Dependencies {
      */
     public static Dependency cacheOnComplete(Dependency dep) {
         AtomicBoolean value = new AtomicBoolean(false);
-        return () -> {
+        return job -> {
             if (!value.get()) {
-                value.set(dep.isCompleted());
+                value.set(dep.isCompleted(job));
             }
             return value.get();
         };
@@ -70,8 +70,8 @@ public abstract class Dependencies {
             }
 
             @Override
-            public boolean isCompleted() {
-                return predicate.test(getJob());
+            public boolean isCompleted(Job callerJob) {
+                return predicate.test(job);
             }
         };
     }
@@ -176,9 +176,9 @@ public abstract class Dependencies {
         if (deps == null || deps.length == 0) {
             throw new IllegalArgumentException("no JobDependecies");
         }
-        return () -> {
+        return caller -> {
             for (JobDependency d : deps) {
-                if (d.isCompleted()) {
+                if (d.isCompleted(caller)) {
                     return true;
                 }
             }
@@ -191,9 +191,9 @@ public abstract class Dependencies {
         if (deps == null || deps.length == 0) {
             throw new IllegalArgumentException("no JobDependecies");
         }
-        return () -> {
+        return caller -> {
             for (JobDependency d : deps) {
-                if (!d.isCompleted()) {
+                if (!d.isCompleted(caller)) {
                     return false;
                 }
             }

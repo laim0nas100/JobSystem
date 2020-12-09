@@ -1,5 +1,7 @@
 package lt.lb.jobsystem.dependency;
 
+import lt.lb.jobsystem.Job;
+
 /**
  * Dependency with no explicit job association. 
  * @author laim0nas100
@@ -12,7 +14,7 @@ public interface Dependency {
      *
      * @return
      */
-    public boolean isCompleted();
+    public boolean isCompleted(Job job);
     
     
     /**
