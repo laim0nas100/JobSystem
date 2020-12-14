@@ -165,8 +165,8 @@ public class Job<T> implements RunnableFuture<T> {
      * Cancel while interrupting and propagating to all child tasks that. Can
      * cancel even if task is done.
      *
-     * @param interrupt wether to interrupt this and child tasks.
-     * @param propogate wether to propagate to child tasks.
+     * @param interrupt whether to interrupt this and child tasks.
+     * @param propogate whether to propagate to child tasks.
      * @return
      */
     public boolean cancel(boolean interrupt, boolean propogate) {
@@ -196,7 +196,7 @@ public class Job<T> implements RunnableFuture<T> {
      * Cancel while interrupting and propagating to all child tasks that. Can
      * cancel even if task is done.
      *
-     * @param interrupt wether to interrupt this and child tasks.
+     * @param interrupt whether to interrupt this and child tasks.
      * @return
      */
     @Override
@@ -206,7 +206,7 @@ public class Job<T> implements RunnableFuture<T> {
 
     /**
      *
-     * @return wether this task is ready to run (all dependencies are satisfied)
+     * @return whether this task is ready to run (all dependencies are satisfied)
      */
     public boolean canRun() {
 
@@ -272,7 +272,7 @@ public class Job<T> implements RunnableFuture<T> {
 
     /**
      *
-     * @return wether this is currently running.
+     * @return whether this is currently running.
      */
     public boolean isRunning() {
         return running.get();
@@ -567,7 +567,7 @@ public class Job<T> implements RunnableFuture<T> {
      *
      * @param event event
      * @param collection listeners to trigger
-     * @param ignore wether to ignore exceptions
+     * @param ignore whether to ignore exceptions
      */
     protected void fireEvent(JobEvent event, Collection<JobEventListener> collection, boolean ignore) {
         if (collection == null) {

@@ -70,7 +70,7 @@ public enum SystemJobEventName {
      */
     public final String eventName;
     /**
-     * Wether this event can occur only once or multiple times per job using
+     * Whether this event can occur only once or multiple times per job using
      * the Job System, of course the user can fire any event any amount of
      * times.
      */

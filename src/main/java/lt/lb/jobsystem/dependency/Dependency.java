@@ -10,15 +10,16 @@ public interface Dependency {
 
 
     /**
-     * Wether dependency is satisfied
+     * Whether dependency is satisfied
      *
+     * @param caller job
      * @return
      */
     public boolean isCompleted(Job job);
     
     
     /**
-     * Wether dependency is possible to be satisfied
+     * Whether dependency is possible to be satisfied
      * @return 
      */
     public default boolean isPossible(){
