@@ -10,6 +10,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.Callable;
 import lt.lb.jobsystem.events.JobEventListener;
 import lt.lb.jobsystem.events.JobEvent;
 import lt.lb.jobsystem.dependency.Dependency;
@@ -25,6 +26,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import lt.lb.fastid.FastID;
+import lt.lb.fastid.FastIDGen;
 
 /**
  *
@@ -32,6 +35,8 @@ import java.util.function.Function;
  * @param <T>
  */
 public class Job<T> implements RunnableFuture<T> {
+
+    static FastIDGen idgen = new FastIDGen();
 
     Collection<Dependency> doBefore = new HashSet<>();
     Collection<Job> doAfter = new HashSet<>();
@@ -56,6 +61,10 @@ public class Job<T> implements RunnableFuture<T> {
 
     protected final FutureTask<T> task;
     Thread jobThread;
+
+    public static FastID getNextID() {
+        return idgen.getAndIncrement();
+    }
 
     /**
      *
@@ -83,7 +92,7 @@ public class Job<T> implements RunnableFuture<T> {
      * @param call
      */
     public Job(Consumer<? super Job<T>> call) {
-        this(UUID.randomUUID().toString(), call);
+        this(Job.getNextID() + "-Job", call);
     }
 
     /**
@@ -91,7 +100,25 @@ public class Job<T> implements RunnableFuture<T> {
      * @param call
      */
     public Job(Function<? super Job<T>, ? extends T> call) {
-        this(UUID.randomUUID().toString(), call);
+        this(Job.getNextID() + "-Job", call);
+    }
+
+    /**
+     *
+     * @param uuid
+     * @param call
+     */
+    public Job(String uuid, Callable<T> call) {
+        this.uuid = Job.getNextID() + "-Job";
+        task = new FutureTask<>(call);
+    }
+
+    /**
+     *
+     * @param call
+     */
+    public Job(Callable<T> call) {
+        this(Job.getNextID() + "-Job", call);
     }
 
     /**
@@ -206,7 +233,8 @@ public class Job<T> implements RunnableFuture<T> {
 
     /**
      *
-     * @return whether this task is ready to run (all dependencies are satisfied)
+     * @return whether this task is ready to run (all dependencies are
+     * satisfied)
      */
     public boolean canRun() {
 
