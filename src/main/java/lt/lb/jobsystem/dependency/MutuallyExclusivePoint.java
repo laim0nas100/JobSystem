@@ -9,8 +9,8 @@ import lt.lb.jobsystem.events.SystemJobEventName;
 
 /**
  *
- * Simulates shared data that can only be accessed by one thread at a time. A
- * job can be in multiple exclusive points.
+ * Simulates shared data that can only be accessed by one thread (job) at a time. A
+ * job can be in multiple exclusive points. It is paramount that Job UUIDs are unique.
  *
  * @author laim0nas100
  */
@@ -46,7 +46,7 @@ public class MutuallyExclusivePoint implements Dependency {
     @Override
     public boolean isCompleted(Job job) {
         String id = job.getUUID();
-        if (!jobs.containsKey(id)) { // check if is in jobs
+        if (!jobs.containsKey(id)) { // check if it is in jobs
             return true;
         } else {
             return callerIsFreeToGo(job);

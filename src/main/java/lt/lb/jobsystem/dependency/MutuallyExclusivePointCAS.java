@@ -12,6 +12,10 @@ import lt.lb.jobsystem.events.SystemJobEventName;
  *
  * Simulates shared data that can only be accessed by one thread at a time.
  * A job can be in multiple exclusive points. Using compare and swap (CAS) technique.
+ * 
+ * Doesn't check every job that can access this mutually exclusive point, instead uses "dibs" system alongside with CAS.
+ * 
+ * Works better for mutually exclusive point with many contesting threads (jobs).
  *
  * @author laim0nas100
  */
@@ -67,7 +71,14 @@ public class MutuallyExclusivePointCAS implements Dependency {
             }
             // other has dibs, but not scheduled, maybe i can has dibs?
             if (scheduled.compareAndSet(null, null)) {// not executing yet, set dibs to be mine
-                return dibsed.compareAndSet(dibsedBy, job);
+                if(dibsed.compareAndSet(dibsedBy, job)){
+                    // just in case dibsed job became schedule
+                    if(scheduled.compareAndSet(null, null)){
+                        return true;
+                    }else{ // removed dibs after it was allready scheduled
+                        dibsed.set(dibsedBy);
+                    }
+                }
             }
         }
 

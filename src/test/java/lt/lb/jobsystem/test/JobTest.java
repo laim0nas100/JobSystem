@@ -16,6 +16,7 @@ import lt.lb.jobsystem.JobExecutor;
 import lt.lb.jobsystem.ScheduledJobExecutor;
 import lt.lb.jobsystem.dependency.Dependency;
 import lt.lb.jobsystem.dependency.MutuallyExclusivePoint;
+import lt.lb.jobsystem.dependency.MutuallyExclusivePointCAS;
 import lt.lb.jobsystem.events.SystemJobEventName;
 import org.junit.Test;
 
@@ -114,11 +115,11 @@ public class JobTest {
             Integer jobs = rng.nextInt(5) + 20;
             int middle = rng.nextInt(jobs - 10) + 5;
 
-            Integer range = rng.nextInt(50000)+50000;
+            long range = rng.nextInt(50000)+50000;
 
             MutuallyExclusivePoint point1 = new MutuallyExclusivePoint();
 
-            MutuallyExclusivePoint point2 = new MutuallyExclusivePoint();
+            MutuallyExclusivePointCAS point2 = new MutuallyExclusivePointCAS();
 
             Dependency randomDep = j -> {
 //            Log.print(j.getUUID() + "-DEP CHECK");
@@ -129,7 +130,7 @@ public class JobTest {
             for (int i = 0; i < jobs; i++) {
                 if (i < middle) {
                     Job jobBoth = new Job(getID() + "B", job -> {
-                        for (int j = 0; j < range; j++) {
+                        for (long j = 0; j < range; j++) {
                             longVal1.numb++;
                             longVal2.numb++;
                         }
@@ -141,7 +142,7 @@ public class JobTest {
 
                 } else {
                     Job jobEx1 = new Job(getID() + "E1", job -> {
-                        for (int j = 0; j < range; j++) {
+                        for (long j = 0; j < range; j++) {
                             longVal1.numb++;
                         }
                     });
@@ -150,7 +151,7 @@ public class JobTest {
                     point1.addSharingJob(jobEx1);
 
                     Job jobEx2 = new Job(getID() + "E2", job -> {
-                        for (int j = 0; j < range; j++) {
+                        for (long j = 0; j < range; j++) {
                             longVal2.numb++;
                         }
                     });
@@ -161,7 +162,7 @@ public class JobTest {
                 }
 
                 Job jobSimple = new Job(getID(), job -> {
-                    for (int j = 0; j < range; j++) {
+                    for (long j = 0; j < range; j++) {
                         atomLong.incrementAndGet();
                     }
                 });
@@ -176,7 +177,8 @@ public class JobTest {
             executor.submitAll(allJobs);
 
 //        executor.submitAll(allJobs);
-            executor.awaitJobEmptiness(1, TimeUnit.DAYS);
+
+            executor.shutdownAndWait(1, TimeUnit.DAYS);
             assert atomLong.get() == longVal1.numb;
             assert longVal1.numb == longVal2.numb;
         }

@@ -3,7 +3,6 @@ package lt.lb.jobsystem.events;
 import lt.lb.jobsystem.Job;
 import lt.lb.jobsystem.dependency.AbstractJobDependency;
 
-
 /**
  * System job dependency support all system events defined in
  * SystemJobEventName.
@@ -19,13 +18,18 @@ public class SystemJobDependency extends AbstractJobDependency {
         this.enumName = event;
 
     }
-    
+
     @Override
-    public boolean isPossible(){
-        return !impossible();
+    public boolean isPossible() {
+        return !impossible(job, enumName);
+    }
+
+    @Override
+    public boolean isCompleted(Job caller) {
+        return isCompleted(job, enumName);
     }
     
-    public boolean impossible(){
+    public static boolean impossible(Job job, SystemJobEventName enumName) {
         switch (enumName) {
             case ON_FAILED_TO_START: {
                 return job.isDiscardedOrDone() && job.getFailedToStart() == 0;
@@ -37,7 +41,7 @@ public class SystemJobDependency extends AbstractJobDependency {
                 return job.isExecuted() || job.isSuccessfull() || job.isExceptional() || (job.isDiscarded() && !job.isInterrupted());
             }
             case ON_SCHEDULED: {
-                return job.isDiscardedOrDone()&& !job.isScheduled();
+                return job.isDiscardedOrDone() && !job.isScheduled();
             }
 
             case ON_EXECUTE: {
@@ -52,7 +56,7 @@ public class SystemJobDependency extends AbstractJobDependency {
                 return false;
             }
             case ON_EXCEPTIONAL: {
-                return job.isDiscardedOrDone()&& !job.isExceptional();
+                return job.isDiscardedOrDone() && !job.isExceptional();
             }
             case ON_CANCEL: { // can always cancel
                 return false;
@@ -69,8 +73,7 @@ public class SystemJobDependency extends AbstractJobDependency {
         }
     }
 
-    @Override
-    public boolean isCompleted(Job caller) {
+    public static boolean isCompleted(Job job, SystemJobEventName enumName) {
         switch (enumName) {
             case ON_FAILED_TO_START: {
                 return job.getFailedToStart() > 0;

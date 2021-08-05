@@ -9,14 +9,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.UUID;
 import java.util.concurrent.Callable;
-import lt.lb.jobsystem.events.JobEventListener;
-import lt.lb.jobsystem.events.JobEvent;
-import lt.lb.jobsystem.dependency.Dependency;
-import lt.lb.jobsystem.events.SystemJobEvent;
-import lt.lb.jobsystem.events.SystemJobEventName;
-import lt.lb.jobsystem.events.SystemJobDependency;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.FutureTask;
 import java.util.concurrent.RunnableFuture;
@@ -28,6 +21,12 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import lt.lb.fastid.FastID;
 import lt.lb.fastid.FastIDGen;
+import lt.lb.jobsystem.dependency.Dependency;
+import lt.lb.jobsystem.events.JobEvent;
+import lt.lb.jobsystem.events.JobEventListener;
+import lt.lb.jobsystem.events.SystemJobDependency;
+import lt.lb.jobsystem.events.SystemJobEvent;
+import lt.lb.jobsystem.events.SystemJobEventName;
 
 /**
  *
@@ -109,7 +108,7 @@ public class Job<T> implements RunnableFuture<T> {
      * @param call
      */
     public Job(String uuid, Callable<T> call) {
-        this.uuid = Job.getNextID() + "-Job";
+        this.uuid = Objects.requireNonNull(uuid);
         task = new FutureTask<>(call);
     }
 

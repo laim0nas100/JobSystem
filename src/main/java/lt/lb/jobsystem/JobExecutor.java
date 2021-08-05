@@ -2,9 +2,6 @@ package lt.lb.jobsystem;
 
 import java.util.Arrays;
 import java.util.Collection;
-import lt.lb.jobsystem.events.JobEventListener;
-import lt.lb.jobsystem.events.SystemJobEvent;
-import lt.lb.jobsystem.events.SystemJobEventName;
 import java.util.Iterator;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentLinkedDeque;
@@ -15,6 +12,9 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
+import lt.lb.jobsystem.events.JobEventListener;
+import lt.lb.jobsystem.events.SystemJobEvent;
+import lt.lb.jobsystem.events.SystemJobEventName;
 
 /**
  * Job executor with provided base executor. No cleanup is necessary. Job

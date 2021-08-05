@@ -12,7 +12,7 @@ public interface Dependency {
     /**
      * Whether dependency is satisfied
      *
-     * @param caller job
+     * @param job. Dependency can be assigned to multiple jobs. For example: {@link MutuallyExclusivePoint}.
      * @return
      */
     public boolean isCompleted(Job job);

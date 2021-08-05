@@ -8,7 +8,7 @@ import java.util.concurrent.TimeUnit;
 /**
  * Job executor with provided base executor. Cleanup (shutdown) is necessary.
  * Job scheduling uses same provided executor (usually the same work thread
- * after job was finished). Periodically (1 second by default) rescans jobs.
+ * after job was finished). Periodically (3 seconds by default) rescans jobs.
  *
  * @author laim0nas100
  */
@@ -38,20 +38,16 @@ public class ScheduledJobExecutor extends JobExecutor {
     public void shutdown() {
         super.shutdown();
         service.shutdown();
-        
+
     }
 
     @Override
     public boolean shutdownAndWait(long time, TimeUnit unit) throws InterruptedException {
-        
+
         super.shutdown();
         boolean awaited = awaitTermination(time, unit);
-        if(awaited){
-            service.shutdown();
-        }
+        service.shutdown();
         return awaited;
     }
-    
-   
-    
+
 }

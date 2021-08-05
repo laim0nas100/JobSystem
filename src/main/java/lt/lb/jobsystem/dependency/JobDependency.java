@@ -6,6 +6,7 @@ import lt.lb.jobsystem.Job;
  *
  * Dependency with explicit job association. 
  * @author laim0nas100
+ * @param <T>
  */
 public interface JobDependency<T> extends Dependency {
 

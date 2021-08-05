@@ -7,6 +7,7 @@ import java.util.Random;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import lt.lb.jobsystem.Dependencies;
 import lt.lb.jobsystem.Job;
 import lt.lb.jobsystem.JobExecutor;
 import lt.lb.jobsystem.ScheduledJobExecutor;
@@ -76,9 +77,9 @@ public class JobsExample {
             return true;
         });
 
-//        deps.stream().map(Dependencies::cacheOnComplete).forEach(d -> {
-//            job.addDependency(d);
-//        });
+        deps.stream().map(Dependencies::cacheOnComplete).forEach(d -> {
+            job.addDependency(d);
+        });
         jobs.add(job);
         return job;
     }
@@ -108,7 +109,7 @@ public class JobsExample {
 
         exe.awaitJobEmptiness(1, TimeUnit.HOURS);
         exe.shutdown();
-        executor.shutdown();
+        executor.shutdown(); // print executor, unrelated to job executor
 
     }
 }

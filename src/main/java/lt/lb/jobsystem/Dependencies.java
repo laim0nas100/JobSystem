@@ -1,12 +1,12 @@
 package lt.lb.jobsystem;
 
+import java.util.Collection;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Predicate;
 import lt.lb.jobsystem.dependency.Dependency;
 import lt.lb.jobsystem.dependency.JobDependency;
 import lt.lb.jobsystem.events.SystemJobDependency;
 import lt.lb.jobsystem.events.SystemJobEventName;
-import java.util.Collection;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Predicate;
 
 /**
  *
