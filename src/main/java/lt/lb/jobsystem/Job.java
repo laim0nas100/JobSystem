@@ -220,7 +220,7 @@ public class Job<T> implements RunnableFuture<T> {
         }
         boolean canceledOk = task.cancel(interrupt);
         this.fireSystemEvent(new SystemJobEvent(SystemJobEventName.ON_CANCEL, this));
-        if (propogate) {
+        if (propogate && doAfter != null) {
             for (Job j : this.doAfter) {
                 j.canceledRoot = root;
                 j.canceledParent = this;
@@ -712,7 +712,9 @@ public class Job<T> implements RunnableFuture<T> {
         if (event instanceof SystemJobEvent) {
             fireSystemEvent((SystemJobEvent) event);
         } else {
-            fireEvent(event, listeners.getOrDefault(event.getEventName(), null), false);
+            if (listeners != null) {
+                fireEvent(event, listeners.getOrDefault(event.getEventName(), null), false);
+            }
         }
 
     }
@@ -744,8 +746,11 @@ public class Job<T> implements RunnableFuture<T> {
                 if (!ignore) {
                     Collection<JobEventListener> onExcpetionalEvent = systemListeners.getOrDefault(SystemJobEventName.ON_EXCEPTIONAL_EVENT, null);
                     setFlag(EXCEPTIONAL_EVENT);
-                    SystemJobEvent systemJobEvent = new SystemJobEvent(SystemJobEventName.ON_EXCEPTIONAL_EVENT, event.getCreator(), th);
-                    fireEvent(systemJobEvent, onExcpetionalEvent, true);
+                    if (onExcpetionalEvent != null) {
+                        SystemJobEvent systemJobEvent = new SystemJobEvent(SystemJobEventName.ON_EXCEPTIONAL_EVENT, event.getCreator(), th);
+                        fireEvent(systemJobEvent, onExcpetionalEvent, true);
+                    }
+
                 }
             }
         }
