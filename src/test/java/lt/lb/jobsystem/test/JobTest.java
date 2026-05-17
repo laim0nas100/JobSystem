@@ -115,7 +115,7 @@ public class JobTest {
             Integer jobs = rng.nextInt(5) + 20;
             int middle = rng.nextInt(jobs - 10) + 5;
 
-            long range = rng.nextInt(50000)+50000;
+            long range = rng.nextInt(50000) + 50000;
 
             MutuallyExclusivePoint point1 = new MutuallyExclusivePoint();
 
@@ -177,7 +177,6 @@ public class JobTest {
             executor.submitAll(allJobs);
 
 //        executor.submitAll(allJobs);
-
             executor.shutdownAndWait(1, TimeUnit.DAYS);
             assert atomLong.get() == longVal1.numb;
             assert longVal1.numb == longVal2.numb;

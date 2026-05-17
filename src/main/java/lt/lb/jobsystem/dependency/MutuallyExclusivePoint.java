@@ -20,18 +20,17 @@ public class MutuallyExclusivePoint implements Dependency {
 
     public void addSharingJob(final Job job) {
         job.addDependency(this);
-        final String id = job.getUUID();
+        final String id = job.getID();
         jobs.put(id, job);
         JobEventListener jobEventListener = (JobEvent event) -> {
             jobs.remove(id); // remove the job, if such still exists
         };
 
         job.addListener(SystemJobEventName.ON_DONE, jobEventListener);
-        job.addListener(SystemJobEventName.ON_DISCARDED, jobEventListener);
     }
 
     private boolean jobIsDone(Job j) {
-        return j.isDiscardedOrDone() || (!j.isScheduled() && !j.isRunning());
+        return j.isRemovable()|| (!j.isScheduled() && !j.isRunning());
     }
 
     private boolean callerIsFreeToGo(Job job) {
@@ -45,7 +44,7 @@ public class MutuallyExclusivePoint implements Dependency {
 
     @Override
     public boolean isCompleted(Job job) {
-        String id = job.getUUID();
+        String id = job.getID();
         if (!jobs.containsKey(id)) { // check if it is in jobs
             return true;
         } else {

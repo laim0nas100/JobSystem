@@ -28,11 +28,11 @@ public class SystemJobDependency extends AbstractJobDependency {
     public boolean isCompleted(Job caller) {
         return isCompleted(job, enumName);
     }
-    
+
     public static boolean impossible(Job job, SystemJobEventName enumName) {
         switch (enumName) {
             case ON_FAILED_TO_START: {
-                return job.isDiscardedOrDone() && job.getFailedToStart() == 0;
+                return job.isRemovable()&& job.getFailedToStart() == 0;
             }
             case ON_ABORTED: {
                 return job.isExecuted() || (job.isDiscarded() && !job.isAborted());
@@ -41,11 +41,11 @@ public class SystemJobDependency extends AbstractJobDependency {
                 return job.isExecuted() || job.isSuccessfull() || job.isExceptional() || (job.isDiscarded() && !job.isInterrupted());
             }
             case ON_SCHEDULED: {
-                return job.isDiscardedOrDone() && !job.isScheduled();
+                return job.isRemovable() && !job.isScheduled();
             }
 
             case ON_EXECUTE: {
-                return job.isDiscardedOrDone() && !job.isExecuted();
+                return job.isRemovable() && !job.isExecuted();
             }
 
             case ON_EXCEPTIONAL_EVENT: { //can always fire events
@@ -56,16 +56,19 @@ public class SystemJobDependency extends AbstractJobDependency {
                 return false;
             }
             case ON_EXCEPTIONAL: {
-                return job.isDiscardedOrDone() && !job.isExceptional();
+                return job.isRemovable() && !job.isExceptional();
             }
             case ON_CANCEL: { // can always cancel
                 return false;
             }
             case ON_SUCCESSFUL: {
-                return job.isDiscardedOrDone() && !job.isSuccessfull();
+                return job.isRemovable() && !job.isSuccessfull();
             }
-            case ON_DONE: {
-                return job.isDiscarded() && !job.isDone();
+            case ON_DONE: { // can always be done
+                return false;
+            }
+            case ON_ATTEMPTED: {
+                return job.isAborted();
             }
             default: {
                 throw new IllegalArgumentException("Failed to qualify enum " + enumName);
@@ -110,6 +113,9 @@ public class SystemJobDependency extends AbstractJobDependency {
             }
             case ON_DONE: {
                 return job.isDone();
+            }
+            case ON_ATTEMPTED: {
+                return job.isAttempted();
             }
             default: {
                 throw new IllegalArgumentException("Failed to qualify enum " + enumName);

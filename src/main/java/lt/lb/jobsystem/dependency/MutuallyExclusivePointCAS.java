@@ -27,7 +27,7 @@ public class MutuallyExclusivePointCAS implements Dependency {
 
     public void addSharingJob(final Job job) {
         job.addDependency(this);
-        final String id = job.getUUID();
+        final String id = job.getID();
         jobs.put(id, job);
         job.addListener(SystemJobEventName.ON_FAILED_TO_START, event -> {
             dibsed.compareAndSet(job, null); //free the dibs
@@ -45,12 +45,11 @@ public class MutuallyExclusivePointCAS implements Dependency {
         };
 
         job.addListener(SystemJobEventName.ON_DONE, jobEventListener);
-        job.addListener(SystemJobEventName.ON_DISCARDED, jobEventListener);
     }
 
     @Override
     public boolean isCompleted(Job job) {
-        String id = job.getUUID();
+        String id = job.getID();
         if (!jobs.containsKey(id)) { // check if contesting for dibs
             return true;
         }

@@ -9,10 +9,20 @@ import java.util.concurrent.ExecutionException;
  * @author laim0nas100
  */
 public enum SystemJobEventName {
+
     /**
      * When Job becomes done.
      *
-     * (exceptional or successful or cancelled)
+     * executed and (exceptional or successful or cancelled or interrupted)
+     */
+    ON_ATTEMPTED("onAttempted"),
+    /**
+     * When Job becomes done.
+     *
+     * (after attempted or discarded). The last possible event (unless the
+     * exceptional event happens inside it or same job was resubmitted). Always
+     * fires only once, unlike the discarded event. Can be fired inside a job,
+     * or by a JobExecutor.
      */
     ON_DONE("onDone"),
     /**
@@ -33,7 +43,8 @@ public enum SystemJobEventName {
     ON_EXCEPTIONAL("onExceptional"),
     /**
      * When Job becomes discarded by {@link lt.lb.jobsystem.JobExecutor}. Job
-     * can be discarded when it's done some of its dependencies becomes impossible.
+     * can be discarded when it's done some of its dependencies becomes
+     * impossible.
      */
     ON_DISCARDED("onDiscarded"),
     /**

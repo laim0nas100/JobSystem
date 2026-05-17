@@ -1,9 +1,9 @@
 package lt.lb.jobsystem;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.EnumMap;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -15,8 +15,8 @@ import java.util.concurrent.FutureTask;
 import java.util.concurrent.RunnableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.locks.LockSupport;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import lt.lb.fastid.FastID;
@@ -37,29 +37,43 @@ public class Job<T> implements RunnableFuture<T> {
 
     static FastIDGen idgen = new FastIDGen();
 
-    Collection<Dependency> doBefore = new HashSet<>();
-    Collection<Job> doAfter = new HashSet<>();
-    final String uuid;
+    protected Collection<Dependency> doBefore;
+    protected Collection<Job> doAfter;
+    public final String id;
 
-    Map<String, Collection<JobEventListener>> listeners = new HashMap<>();
-    EnumMap<SystemJobEventName, Collection<JobEventListener>> systemListeners = new EnumMap<>(SystemJobEventName.class);
-    AtomicBoolean cancelled = new AtomicBoolean(false);
-    volatile boolean exceptional = false;
-    volatile boolean successfull = false;
-    volatile boolean interupted = false;
-    volatile boolean exceptionalEvent = false;
-    volatile boolean executed = false;
-    AtomicInteger failedToStart = new AtomicInteger(0);
-    AtomicBoolean scheduled = new AtomicBoolean(false);
-    AtomicBoolean discarded = new AtomicBoolean(false);
-    AtomicBoolean repeatedDiscard = new AtomicBoolean(false);
-    AtomicBoolean running = new AtomicBoolean(false);
+    protected Map<String, Collection<JobEventListener>> listeners;
+    protected EnumMap<SystemJobEventName, Collection<JobEventListener>> systemListeners = new EnumMap<>(SystemJobEventName.class);
 
-    Job canceledParent;
-    Job canceledRoot;
+    protected final AtomicInteger flags = new AtomicInteger(0);
+
+    // Bit constants
+    static final int EXCEPTIONAL = 1;
+    static final int SUCCESSFUL = 1 << 1;
+    static final int INTERRUPTED = 1 << 2;
+    static final int EXCEPTIONAL_EVENT = 1 << 3;
+    static final int EXECUTED = 1 << 4;
+    static final int SCHEDULED = 1 << 5;
+    static final int DISCARDED = 1 << 6;
+    static final int REPEATED_DISCARD = 1 << 7;
+    static final int RUNNING = 1 << 8;
+    static final int CANCELLED = 1 << 9;
+    static final int DONE = 1 << 10;
+
+    static final int REMOVABLE_MASK
+            = DISCARDED
+            | SUCCESSFUL
+            | CANCELLED
+            | EXCEPTIONAL
+            | INTERRUPTED
+            | DONE;
+
+    protected AtomicInteger failedToStart = new AtomicInteger(0);
+
+    protected Job canceledParent;
+    protected Job canceledRoot;
 
     protected final FutureTask<T> task;
-    Thread jobThread;
+    protected Thread jobThread;
 
     public static FastID getNextID() {
         return idgen.getAndIncrement();
@@ -67,21 +81,21 @@ public class Job<T> implements RunnableFuture<T> {
 
     /**
      *
-     * @param uuid
+     * @param id
      * @param call
      */
-    public Job(String uuid, Consumer<? super Job<T>> call) {
-        this.uuid = Objects.requireNonNull(uuid);
+    public Job(String id, Consumer<? super Job<T>> call) {
+        this.id = Objects.requireNonNull(id);
         task = new FutureTask<>(() -> call.accept(this), null);
     }
 
     /**
      *
-     * @param uuid
+     * @param id
      * @param call
      */
-    public Job(String uuid, Function<? super Job<T>, ? extends T> call) {
-        this.uuid = Objects.requireNonNull(uuid);
+    public Job(String id, Function<? super Job<T>, ? extends T> call) {
+        this.id = Objects.requireNonNull(id);
         task = new FutureTask<>(() -> call.apply(this));
 
     }
@@ -104,11 +118,11 @@ public class Job<T> implements RunnableFuture<T> {
 
     /**
      *
-     * @param uuid
+     * @param id
      * @param call
      */
-    public Job(String uuid, Callable<T> call) {
-        this.uuid = Objects.requireNonNull(uuid);
+    public Job(String id, Callable<T> call) {
+        this.id = Objects.requireNonNull(id);
         task = new FutureTask<>(call);
     }
 
@@ -144,7 +158,7 @@ public class Job<T> implements RunnableFuture<T> {
     @Override
     public int hashCode() {
         int hash = 3;
-        hash = 67 * hash + uuid.hashCode();
+        hash = 67 * hash + id.hashCode();
         return hash;
     }
 
@@ -158,17 +172,17 @@ public class Job<T> implements RunnableFuture<T> {
         }
         if (o instanceof Job) {
             Job other = (Job) o;
-            return other.uuid.equals(this.uuid);
+            return other.id.equals(this.id);
         }
         return false;
     }
 
     /**
      *
-     * @return UUID string
+     * @return ID string
      */
-    public String getUUID() {
-        return this.uuid;
+    public String getID() {
+        return this.id;
     }
 
     /**
@@ -201,10 +215,9 @@ public class Job<T> implements RunnableFuture<T> {
 
     private boolean cancelInner(boolean interrupt, boolean propogate, Job root) {
 
-        if (!cancelled.compareAndSet(false, true)) {
+        if (!trySetFlag(CANCELLED)) {
             return false;
         }
-
         boolean canceledOk = task.cancel(interrupt);
         this.fireSystemEvent(new SystemJobEvent(SystemJobEventName.ON_CANCEL, this));
         if (propogate) {
@@ -240,6 +253,9 @@ public class Job<T> implements RunnableFuture<T> {
         if (this.isDone()) {
             return false;
         }
+        if (doBefore == null) {
+            return true;
+        }
         for (Dependency dep : this.doBefore) {
             if (!dep.isCompleted(this)) {
                 return false;
@@ -249,8 +265,11 @@ public class Job<T> implements RunnableFuture<T> {
     }
 
     public boolean isPossibleToRun() {
-        if (this.isDiscardedOrDone()) {
+        if (isRemovable()) {
             return false;
+        }
+        if (doBefore == null) {
+            return true;
         }
         for (Dependency dep : this.doBefore) {
             if (!dep.isPossible()) {
@@ -260,6 +279,100 @@ public class Job<T> implements RunnableFuture<T> {
         return true;
     }
 
+    protected boolean trySetFlag(int flag) {
+        int current;
+        int updated;
+
+        do {
+            current = flags.get();
+
+            if ((current & flag) != 0) {
+                return false; // already set
+            }
+
+            updated = current | flag;
+            boolean ok = flags.compareAndSet(current, updated);
+            if (ok) {
+                return ok;
+            }
+            LockSupport.parkNanos(1);
+
+        } while (true);
+    }
+
+    protected boolean tryClearFlag(int flag) {
+        int current;
+        int updated;
+
+        do {
+            current = flags.get();
+
+            if ((current & flag) == 0) {
+                return false; // already cleared
+            }
+
+            updated = current & ~flag;
+            boolean ok = flags.compareAndSet(current, updated);
+            if (ok) {
+                return ok;
+            }
+            LockSupport.parkNanos(1);
+
+        } while (true);
+    }
+
+    protected void setFlag(int flag) {
+        setFlag(flag, true);
+    }
+
+    protected void setFlag(int flag, boolean repeated) {
+        int current;
+        int updated;
+
+        do {
+            current = flags.get();
+            updated = current | flag;
+            if (current == updated) {
+                return;
+            }
+            boolean ok = flags.compareAndSet(current, updated);
+            if (ok) {
+                return;
+            }
+            LockSupport.parkNanos(1);// backoff
+
+        } while (repeated);
+    }
+
+    protected void clearFlag(int flag) {
+        clearFlag(flag, true);
+    }
+
+    protected void clearFlag(int flag, boolean repeated) {
+        int current;
+        int updated;
+
+        do {
+            current = flags.get();
+            updated = current & ~flag;
+
+            // already cleared
+            if (current == updated) {
+                return;
+            }
+
+            boolean ok = flags.compareAndSet(current, updated);
+            if (ok) {
+                return;
+            }
+            LockSupport.parkNanos(1);// backoff
+        } while (repeated);
+    }
+
+    protected boolean hasFlag(int flag) {
+        return (flags.get() & flag) != 0;
+    }
+
     /**
      * {@link lt.lb.jobsystem.events.SystemJobEventName#ON_CANCEL}
      *
@@ -267,7 +380,7 @@ public class Job<T> implements RunnableFuture<T> {
      */
     @Override
     public boolean isCancelled() {
-        return cancelled.get();
+        return hasFlag(CANCELLED);
     }
 
     /**
@@ -276,7 +389,7 @@ public class Job<T> implements RunnableFuture<T> {
      * @return
      */
     public boolean isSuccessfull() {
-        return successfull;
+        return hasFlag(SUCCESSFUL);
     }
 
     /**
@@ -285,7 +398,7 @@ public class Job<T> implements RunnableFuture<T> {
      * @return
      */
     public boolean isExceptional() {
-        return exceptional;
+        return hasFlag(EXCEPTIONAL);
     }
 
     /**
@@ -294,7 +407,7 @@ public class Job<T> implements RunnableFuture<T> {
      * @return
      */
     public boolean isDiscarded() {
-        return discarded.get();
+        return hasFlag(DISCARDED);
     }
 
     /**
@@ -302,7 +415,7 @@ public class Job<T> implements RunnableFuture<T> {
      * @return whether this is currently running.
      */
     public boolean isRunning() {
-        return running.get();
+        return hasFlag(RUNNING);
     }
 
     /**
@@ -311,7 +424,7 @@ public class Job<T> implements RunnableFuture<T> {
      * @return
      */
     public boolean isScheduled() {
-        return scheduled.get();
+        return hasFlag(SCHEDULED);
     }
 
     /**
@@ -320,7 +433,7 @@ public class Job<T> implements RunnableFuture<T> {
      * @return
      */
     public boolean isInterrupted() {
-        return interupted;
+        return hasFlag(INTERRUPTED);
     }
 
     /**
@@ -329,7 +442,20 @@ public class Job<T> implements RunnableFuture<T> {
      * @return
      */
     public boolean isAborted() {
-        return isCancelled() && !isExecuted();
+        int state = flags.get();
+        return (state & CANCELLED) != 0
+                && (state & EXECUTED) == 0;
+    }
+
+    /**
+     * Returns if isExecuted and done.
+     *
+     * @return
+     */
+    public boolean isAttempted() {
+        int state = flags.get();
+        return (state & EXECUTED) != 0
+                && (state & DONE) != 0;
     }
 
     /**
@@ -337,8 +463,8 @@ public class Job<T> implements RunnableFuture<T> {
      *
      * @return
      */
-    public boolean isDiscardedOrDone() {
-        return isDiscarded() || isDone();
+    public boolean isRemovable() {
+        return (flags.get() & REMOVABLE_MASK) != 0;
     }
 
     /**
@@ -387,7 +513,7 @@ public class Job<T> implements RunnableFuture<T> {
      */
     @Override
     public boolean isDone() {
-        return (isCancelled() || isExceptional() || isSuccessfull());
+        return hasFlag(DONE);
     }
 
     /**
@@ -396,7 +522,7 @@ public class Job<T> implements RunnableFuture<T> {
      * @return
      */
     public boolean isExecuted() {
-        return executed;
+        return hasFlag(EXECUTED);
     }
 
     /**
@@ -405,7 +531,7 @@ public class Job<T> implements RunnableFuture<T> {
      * @return
      */
     public boolean isExceptionalEvent() {
-        return exceptionalEvent;
+        return hasFlag(EXCEPTIONAL_EVENT);
     }
 
     /**
@@ -462,6 +588,9 @@ public class Job<T> implements RunnableFuture<T> {
      */
     public Job addDependency(Dependency dep) {
         assertNoChange("dependencies");
+        if (doBefore == null) {
+            doBefore = new ArrayList<>();
+        }
         this.doBefore.add(dep);
         return this;
     }
@@ -475,6 +604,9 @@ public class Job<T> implements RunnableFuture<T> {
      */
     public Job addAfter(Job dep) {
         assertNoChange("child jobs");
+        if (doAfter == null) {
+            doAfter = new ArrayList<>();
+        }
         this.doAfter.add(dep);
         return this;
     }
@@ -490,24 +622,24 @@ public class Job<T> implements RunnableFuture<T> {
         if (!this.canRun()) {
             this.failedToStart.incrementAndGet();
             this.fireSystemEvent(new SystemJobEvent(SystemJobEventName.ON_FAILED_TO_START, this));
-            this.scheduled.set(false);
+            clearFlag(SCHEDULED);
             return;
         }
-        if (this.running.compareAndSet(false, true)) { // ensure only one running instance
-            this.executed = true;
+        if (trySetFlag(RUNNING)) { // ensure only one running instance
+//            this.executed = true;
+            setFlag(EXECUTED);
             this.jobThread = Thread.currentThread();
             this.fireSystemEvent(new SystemJobEvent(SystemJobEventName.ON_EXECUTE, this));
             runTask();
-            ExecutionException ex = null;
+            Throwable ex = null;
             try {
                 task.get();
-                this.successfull = true;
-            } catch (ExecutionException e) {
-                this.exceptional = true;
-                ex = e;
-
+                setFlag(SUCCESSFUL);
             } catch (InterruptedException e) {
-                this.interupted = true;
+                setFlag(INTERRUPTED);
+            } catch (Throwable e) { // execution exception or cancellation exception
+                setFlag(EXCEPTIONAL);
+                ex = e;
             }
 
             if (isSuccessfull()) {
@@ -516,14 +648,16 @@ public class Job<T> implements RunnableFuture<T> {
             if (isExceptional()) {
                 this.fireSystemEvent(new SystemJobEvent(SystemJobEventName.ON_EXCEPTIONAL, this, ex));
             }
-
             if (isInterrupted()) {
                 this.fireSystemEvent(new SystemJobEvent(SystemJobEventName.ON_INTERRUPTED, this));
             }
-            this.fireSystemEvent(new SystemJobEvent(SystemJobEventName.ON_DONE, this));
+            this.fireSystemEvent(new SystemJobEvent(SystemJobEventName.ON_ATTEMPTED, this));
+            if (trySetFlag(DONE)) {
+                this.fireSystemEvent(new SystemJobEvent(SystemJobEventName.ON_DONE, this));
+            }
 
-            if (!this.running.compareAndSet(true, false)) {
-                throw new IllegalStateException("After job:" + this.getUUID() + " ran, property running was set to false");
+            if (!tryClearFlag(RUNNING)) {
+                throw new IllegalStateException("After job:" + this.getID() + " ran, property running was set to false");
             }
 
         }
@@ -546,6 +680,9 @@ public class Job<T> implements RunnableFuture<T> {
      */
     public void addListener(String name, JobEventListener listener) {
         assertNoChange("listeners");
+        if (listeners == null) {
+            listeners = new HashMap<>();
+        }
         listeners.computeIfAbsent(name, n -> new LinkedList<>()).add(listener);
     }
 
@@ -606,7 +743,7 @@ public class Job<T> implements RunnableFuture<T> {
             } catch (Throwable th) {
                 if (!ignore) {
                     Collection<JobEventListener> onExcpetionalEvent = systemListeners.getOrDefault(SystemJobEventName.ON_EXCEPTIONAL_EVENT, null);
-                    exceptionalEvent = true;
+                    setFlag(EXCEPTIONAL_EVENT);
                     SystemJobEvent systemJobEvent = new SystemJobEvent(SystemJobEventName.ON_EXCEPTIONAL_EVENT, event.getCreator(), th);
                     fireEvent(systemJobEvent, onExcpetionalEvent, true);
                 }
