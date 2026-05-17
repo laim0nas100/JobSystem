@@ -32,26 +32,23 @@ public class SystemJobDependency extends AbstractJobDependency {
     public static boolean impossible(Job job, SystemJobEventName enumName) {
         switch (enumName) {
             case ON_FAILED_TO_START: {
-                return job.isRemovable()&& job.getFailedToStart() == 0;
+                return job.isRemovable() && job.getFailedToStart() == 0;
             }
             case ON_ABORTED: {
                 return job.isExecuted() || (job.isDiscarded() && !job.isAborted());
             }
             case ON_INTERRUPTED: {
-                return job.isExecuted() || job.isSuccessfull() || job.isExceptional() || (job.isDiscarded() && !job.isInterrupted());
+                return job.isSuccessfull() || job.isExceptional() || (job.isDone() && !job.isInterrupted());
             }
             case ON_SCHEDULED: {
                 return job.isRemovable() && !job.isScheduled();
             }
-
             case ON_EXECUTE: {
                 return job.isRemovable() && !job.isExecuted();
             }
-
             case ON_EXCEPTIONAL_EVENT: { //can always fire events
                 return false;
             }
-
             case ON_DISCARDED: { //can always discard a job
                 return false;
             }
@@ -90,15 +87,12 @@ public class SystemJobDependency extends AbstractJobDependency {
             case ON_SCHEDULED: {
                 return job.isScheduled();
             }
-
             case ON_EXECUTE: {
                 return job.isExecuted();
             }
-
             case ON_EXCEPTIONAL_EVENT: {
                 return job.isExceptionalEvent();
             }
-
             case ON_DISCARDED: {
                 return job.isDiscarded();
             }

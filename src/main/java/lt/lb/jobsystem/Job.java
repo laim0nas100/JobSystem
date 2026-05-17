@@ -619,45 +619,37 @@ public class Job<T> implements RunnableFuture<T> {
         if (isExecuted()) {
             return;
         }
-        if (!this.canRun()) {
-            this.failedToStart.incrementAndGet();
-            this.fireSystemEvent(new SystemJobEvent(SystemJobEventName.ON_FAILED_TO_START, this));
+        if (!canRun()) {
+            failedToStart.incrementAndGet();
+            fireSystemEvent(new SystemJobEvent(SystemJobEventName.ON_FAILED_TO_START, this));
             clearFlag(SCHEDULED);
             return;
         }
         if (trySetFlag(RUNNING)) { // ensure only one running instance
-//            this.executed = true;
             setFlag(EXECUTED);
-            this.jobThread = Thread.currentThread();
-            this.fireSystemEvent(new SystemJobEvent(SystemJobEventName.ON_EXECUTE, this));
-            runTask();
-            Throwable ex = null;
+            jobThread = Thread.currentThread();
+            fireSystemEvent(new SystemJobEvent(SystemJobEventName.ON_EXECUTE, this));
+
             try {
+                runTask();
                 task.get();
                 setFlag(SUCCESSFUL);
+                fireSystemEvent(new SystemJobEvent(SystemJobEventName.ON_SUCCESSFUL, this));
             } catch (InterruptedException e) {
                 setFlag(INTERRUPTED);
+                fireSystemEvent(new SystemJobEvent(SystemJobEventName.ON_INTERRUPTED, this));
             } catch (Throwable e) { // execution exception or cancellation exception
                 setFlag(EXCEPTIONAL);
-                ex = e;
+                fireSystemEvent(new SystemJobEvent(SystemJobEventName.ON_EXCEPTIONAL, this, e));
             }
 
-            if (isSuccessfull()) {
-                this.fireSystemEvent(new SystemJobEvent(SystemJobEventName.ON_SUCCESSFUL, this));
-            }
-            if (isExceptional()) {
-                this.fireSystemEvent(new SystemJobEvent(SystemJobEventName.ON_EXCEPTIONAL, this, ex));
-            }
-            if (isInterrupted()) {
-                this.fireSystemEvent(new SystemJobEvent(SystemJobEventName.ON_INTERRUPTED, this));
-            }
-            this.fireSystemEvent(new SystemJobEvent(SystemJobEventName.ON_ATTEMPTED, this));
+            fireSystemEvent(new SystemJobEvent(SystemJobEventName.ON_ATTEMPTED, this));
             if (trySetFlag(DONE)) {
-                this.fireSystemEvent(new SystemJobEvent(SystemJobEventName.ON_DONE, this));
+                fireSystemEvent(new SystemJobEvent(SystemJobEventName.ON_DONE, this));
             }
 
             if (!tryClearFlag(RUNNING)) {
-                throw new IllegalStateException("After job:" + this.getID() + " ran, property running was set to false");
+                throw new IllegalStateException("After job:" + getID() + " ran, property running was set to false");
             }
 
         }
@@ -698,7 +690,7 @@ public class Job<T> implements RunnableFuture<T> {
     }
 
     private void assertNoChange(String msg) {
-        if (this.isScheduled()) {
+        if (isScheduled()) {
             throw new IllegalStateException("Job has been scheduled, " + msg + " should not change");
         }
     }
