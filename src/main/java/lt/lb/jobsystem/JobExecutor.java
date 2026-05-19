@@ -14,7 +14,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
 import static lt.lb.jobsystem.Job.DONE;
 import lt.lb.jobsystem.events.JobEventListener;
-import lt.lb.jobsystem.events.SystemJobEvent;
 import lt.lb.jobsystem.events.SystemJobEventName;
 
 /**
@@ -25,14 +24,14 @@ import lt.lb.jobsystem.events.SystemJobEventName;
  * @author laim0nas100
  */
 public class JobExecutor {
-    
+
     protected Executor exe;
-    
+
     protected boolean isShutdown = false;
     protected Collection<Job> jobs = new ConcurrentLinkedDeque<>();
-    
-    protected JobEventListener rescanJobs = l -> addScanRequest();
-    
+
+    protected JobEventListener rescanJobs = (j, c, d) -> addScanRequest();
+
     protected volatile CompletableFuture awaitJobEmpty = new CompletableFuture();
     protected AtomicInteger rrc;
     protected final int rescanThreshold;
@@ -57,7 +56,7 @@ public class JobExecutor {
         this.exe = exe;
         this.rescanThreshold = Math.max(1, rescanThrottle);
         this.rrc = new AtomicInteger(rescanThreshold);
-        
+
     }
 
     /**
@@ -100,7 +99,7 @@ public class JobExecutor {
     public void submitAll(Job... jobs) {
         submitAll(Arrays.asList(jobs));
     }
-    
+
     protected void addScanRequest() {
         if (rrc.getAndDecrement() > 0) {
             exe.execute(() -> rescanJobs0());
@@ -123,7 +122,7 @@ public class JobExecutor {
     public void rescanJobs() {
         this.addScanRequest();
     }
-    
+
     private void rescanJobs0() {
         Iterator<Job> iterator = jobs.iterator();
         while (iterator.hasNext()) {
@@ -134,7 +133,7 @@ public class JobExecutor {
             if (!job.isPossibleToRun()) {
                 if (job.trySetFlag(Job.DISCARDED)) {
                     iterator.remove();
-                    job.fireSystemEvent(new SystemJobEvent(SystemJobEventName.ON_DISCARDED, job));
+                    job.fireSystemEvent(SystemJobEventName.ON_DISCARDED);
                 } else { // job was allready discarded but reinserted so don't fire event again
                     if (job.trySetFlag(Job.REPEATED_DISCARD)) { // thread safety
                         iterator.remove();
@@ -142,14 +141,14 @@ public class JobExecutor {
                     }
                 }
                 if (job.isAborted()) {// cancelled and not executed
-                    job.fireSystemEvent(new SystemJobEvent(SystemJobEventName.ON_ABORTED, job));
+                    job.fireSystemEvent(SystemJobEventName.ON_ABORTED);
                 }
                 if (job.trySetFlag(DONE)) {
-                    job.fireSystemEvent(new SystemJobEvent(SystemJobEventName.ON_DONE, job));
+                    job.fireSystemEvent(SystemJobEventName.ON_DONE);
                 }
             } else if (!job.isExecuted() && !job.isScheduled() && job.canRun()) {
                 if (job.trySetFlag(Job.SCHEDULED)) {
-                    job.fireSystemEvent(new SystemJobEvent(SystemJobEventName.ON_SCHEDULED, job));
+                    job.fireSystemEvent(SystemJobEventName.ON_SCHEDULED);
                     try {
                         //we dont control executor, so just in case it is bad
                         exe.execute(job);
@@ -164,14 +163,14 @@ public class JobExecutor {
                 this.awaitJobEmpty = new CompletableFuture();
                 reasigningAwaitFuture.set(false);
             }
-            
+
         }
         if (rescanThreshold <= rrc.incrementAndGet()) {
             if (rescanDept.compareAndSet(true, false)) {
                 addScanRequest();
             }
         }
-        
+
     }
 
     /**
@@ -185,7 +184,7 @@ public class JobExecutor {
             }
         }
         return true;
-        
+
     }
 
     /**
@@ -256,5 +255,5 @@ public class JobExecutor {
         shutdown();
         return awaitTermination(time, unit);
     }
-    
+
 }

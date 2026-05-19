@@ -44,8 +44,8 @@ public class JobsExample {
     public static void addEventLogListeners(Job job) {
         EnumSet<SystemJobEventName> enums = EnumSet.allOf(SystemJobEventName.class);
         enums.forEach(val -> {
-            job.addListener(val, e -> {
-                Log.print(val.name() + " " + e.getCreator().getID());
+            job.addListener(val, (j,c,d)-> {
+                Log.print(c + " " + j.getID());
             });
         });
     }
@@ -64,9 +64,9 @@ public class JobsExample {
 
         addEventLogListeners(job);
 
-        job.addListener(SystemJobEventName.ON_EXCEPTIONAL, e -> {
-            Log.print("Failed, cancelling", e.getCreator().getID());
-            e.getCreator().cancel();
+        job.addListener(SystemJobEventName.ON_EXCEPTIONAL, (j,c,d) -> {
+            Log.print("Failed, cancelling", j.getID());
+            j.cancel();
         });
 
         ArrayList<Dependency> deps = new ArrayList<>();

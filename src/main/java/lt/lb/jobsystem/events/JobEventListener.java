@@ -1,5 +1,8 @@
 package lt.lb.jobsystem.events;
 
+import java.util.Optional;
+import lt.lb.jobsystem.Job;
+
 /**
  *
  * @author laim0nas100
@@ -7,5 +10,9 @@ package lt.lb.jobsystem.events;
  */
 public interface JobEventListener<T> {
 
-    public void onEvent(JobEvent<T> event);
+//    public void onEvent(JobEvent<T> event);
+
+    public void onEvent(Job<T> job, Object classifier, Optional<T> data);
+    
+    
 }

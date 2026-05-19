@@ -1,5 +1,6 @@
 package lt.lb.jobsystem.events;
 
+import java.io.Serializable;
 import java.util.concurrent.ExecutionException;
 
 /**
@@ -8,7 +9,7 @@ import java.util.concurrent.ExecutionException;
  *
  * @author laim0nas100
  */
-public enum SystemJobEventName {
+public enum SystemJobEventName implements Serializable {
 
     /**
      * When Job becomes done.

@@ -89,7 +89,7 @@ public class JobTest {
     public static void addEventLogListeners(Job job) {
         EnumSet<SystemJobEventName> enums = EnumSet.allOf(SystemJobEventName.class);
         enums.forEach(val -> {
-            job.addListener(val, e -> {
+            job.addListener(val, (j,c,d) -> {
 //                Log.print(job.getUUID() + " " + val.name());
             });
         });

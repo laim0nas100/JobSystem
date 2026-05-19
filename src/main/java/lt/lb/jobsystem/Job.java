@@ -1,5 +1,8 @@
 package lt.lb.jobsystem;
 
+import com.github.laim0nas100.fastid.FastID;
+import com.github.laim0nas100.fastid.FastIDGen;
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.EnumMap;
@@ -19,13 +22,10 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.LockSupport;
 import java.util.function.Consumer;
 import java.util.function.Function;
-import lt.lb.fastid.FastID;
-import lt.lb.fastid.FastIDGen;
+
 import lt.lb.jobsystem.dependency.Dependency;
-import lt.lb.jobsystem.events.JobEvent;
 import lt.lb.jobsystem.events.JobEventListener;
 import lt.lb.jobsystem.events.SystemJobDependency;
-import lt.lb.jobsystem.events.SystemJobEvent;
 import lt.lb.jobsystem.events.SystemJobEventName;
 
 /**
@@ -37,9 +37,9 @@ public class Job<T> implements RunnableFuture<T> {
 
     static FastIDGen idgen = new FastIDGen();
 
-    protected Collection<Dependency> doBefore;
-    protected Collection<Job> doAfter;
-    public final String id;
+    protected List<Dependency> doBefore;
+    protected List<Job> doAfter;
+    public final Serializable id;
 
     protected Map<String, Collection<JobEventListener>> listeners;
     protected EnumMap<SystemJobEventName, Collection<JobEventListener>> systemListeners = new EnumMap<>(SystemJobEventName.class);
@@ -84,7 +84,7 @@ public class Job<T> implements RunnableFuture<T> {
      * @param id
      * @param call
      */
-    public Job(String id, Consumer<? super Job<T>> call) {
+    public Job(Serializable id, Consumer<? super Job<T>> call) {
         this.id = Objects.requireNonNull(id);
         task = new FutureTask<>(() -> call.accept(this), null);
     }
@@ -94,7 +94,7 @@ public class Job<T> implements RunnableFuture<T> {
      * @param id
      * @param call
      */
-    public Job(String id, Function<? super Job<T>, ? extends T> call) {
+    public Job(Serializable id, Function<? super Job<T>, ? extends T> call) {
         this.id = Objects.requireNonNull(id);
         task = new FutureTask<>(() -> call.apply(this));
 
@@ -105,7 +105,7 @@ public class Job<T> implements RunnableFuture<T> {
      * @param call
      */
     public Job(Consumer<? super Job<T>> call) {
-        this(Job.getNextID() + "-Job", call);
+        this(Job.getNextID(), call);
     }
 
     /**
@@ -113,7 +113,7 @@ public class Job<T> implements RunnableFuture<T> {
      * @param call
      */
     public Job(Function<? super Job<T>, ? extends T> call) {
-        this(Job.getNextID() + "-Job", call);
+        this(Job.getNextID(), call);
     }
 
     /**
@@ -121,7 +121,7 @@ public class Job<T> implements RunnableFuture<T> {
      * @param id
      * @param call
      */
-    public Job(String id, Callable<T> call) {
+    public Job(Serializable id, Callable<T> call) {
         this.id = Objects.requireNonNull(id);
         task = new FutureTask<>(call);
     }
@@ -179,18 +179,10 @@ public class Job<T> implements RunnableFuture<T> {
 
     /**
      *
-     * @return ID string
+     * @return ID
      */
-    public String getID() {
+    public Serializable getID() {
         return this.id;
-    }
-
-    /**
-     *
-     * @return thread that this job executed on.
-     */
-    public Optional<Thread> getJobThread() {
-        return Optional.ofNullable(this.jobThread);
     }
 
     /**
@@ -219,7 +211,7 @@ public class Job<T> implements RunnableFuture<T> {
             return false;
         }
         boolean canceledOk = task.cancel(interrupt);
-        this.fireSystemEvent(new SystemJobEvent(SystemJobEventName.ON_CANCEL, this));
+        fireSystemEvent(SystemJobEventName.ON_CANCEL);
         if (propogate && doAfter != null) {
             for (Job j : this.doAfter) {
                 j.canceledRoot = root;
@@ -621,31 +613,31 @@ public class Job<T> implements RunnableFuture<T> {
         }
         if (!canRun()) {
             failedToStart.incrementAndGet();
-            fireSystemEvent(new SystemJobEvent(SystemJobEventName.ON_FAILED_TO_START, this));
+            fireSystemEvent(SystemJobEventName.ON_FAILED_TO_START);
             clearFlag(SCHEDULED);
             return;
         }
         if (trySetFlag(RUNNING)) { // ensure only one running instance
             setFlag(EXECUTED);
             jobThread = Thread.currentThread();
-            fireSystemEvent(new SystemJobEvent(SystemJobEventName.ON_EXECUTE, this));
+            fireSystemEvent(SystemJobEventName.ON_EXECUTE);
 
             try {
                 runTask();
                 task.get();
                 setFlag(SUCCESSFUL);
-                fireSystemEvent(new SystemJobEvent(SystemJobEventName.ON_SUCCESSFUL, this));
+                 fireSystemEvent(SystemJobEventName.ON_SUCCESSFUL);
             } catch (InterruptedException e) {
                 setFlag(INTERRUPTED);
-                fireSystemEvent(new SystemJobEvent(SystemJobEventName.ON_INTERRUPTED, this));
+                fireSystemEvent(SystemJobEventName.ON_INTERRUPTED);
             } catch (Throwable e) { // execution exception or cancellation exception
                 setFlag(EXCEPTIONAL);
-                fireSystemEvent(new SystemJobEvent(SystemJobEventName.ON_EXCEPTIONAL, this, e));
+                fireSystemEvent(SystemJobEventName.ON_EXCEPTIONAL, Optional.of(e));
             }
 
-            fireSystemEvent(new SystemJobEvent(SystemJobEventName.ON_ATTEMPTED, this));
+            fireSystemEvent(SystemJobEventName.ON_ATTEMPTED);
             if (trySetFlag(DONE)) {
-                fireSystemEvent(new SystemJobEvent(SystemJobEventName.ON_DONE, this));
+                fireSystemEvent(SystemJobEventName.ON_DONE);
             }
 
             if (!tryClearFlag(RUNNING)) {
@@ -699,26 +691,36 @@ public class Job<T> implements RunnableFuture<T> {
      *
      * @param event
      */
-    public void fireEvent(JobEvent event) {
-        Objects.requireNonNull(event);
-        if (event instanceof SystemJobEvent) {
-            fireSystemEvent((SystemJobEvent) event);
+    public void fireEvent(Object classifier, Optional data) {
+        Objects.requireNonNull(classifier);
+        if (classifier instanceof SystemJobEventName) {
+            fireSystemEvent((SystemJobEventName) classifier, data);
         } else {
             if (listeners != null) {
-                fireEvent(event, listeners.getOrDefault(event.getEventName(), null), false);
+                fireEvent(classifier, data, listeners.getOrDefault(classifier, null), false);
             }
         }
 
     }
 
     /**
+     * Fire a system event, with empty data
      *
-     * @param event SystemEvent
+     * @param eventName
+     * @param data
      */
-    public void fireSystemEvent(SystemJobEvent event) {
+    public void fireSystemEvent(SystemJobEventName eventName) {
+        fireEvent(eventName, Optional.empty());
+    }
 
-        Objects.requireNonNull(event);
-        fireEvent(event, systemListeners.getOrDefault(event.enumName, null), false);
+    /**
+     * Fire a system event, with optional data
+     *
+     * @param eventName
+     * @param data
+     */
+    public void fireSystemEvent(SystemJobEventName eventName, Optional data) {
+        fireEvent(eventName, data, systemListeners.getOrDefault(eventName, null), false);
     }
 
     /**
@@ -727,22 +729,20 @@ public class Job<T> implements RunnableFuture<T> {
      * @param collection listeners to trigger
      * @param ignore whether to ignore exceptions
      */
-    protected void fireEvent(JobEvent event, Collection<JobEventListener> collection, boolean ignore) {
+    protected void fireEvent(Object classifier, Optional data, Collection<JobEventListener> collection, boolean ignore) {
         if (collection == null) {
             return;
         }
         for (JobEventListener listener : collection) {
             try {
-                listener.onEvent(event);
+                listener.onEvent(this, classifier, data);
             } catch (Throwable th) {
                 if (!ignore) {
                     Collection<JobEventListener> onExcpetionalEvent = systemListeners.getOrDefault(SystemJobEventName.ON_EXCEPTIONAL_EVENT, null);
                     setFlag(EXCEPTIONAL_EVENT);
                     if (onExcpetionalEvent != null) {
-                        SystemJobEvent systemJobEvent = new SystemJobEvent(SystemJobEventName.ON_EXCEPTIONAL_EVENT, event.getCreator(), th);
-                        fireEvent(systemJobEvent, onExcpetionalEvent, true);
+                        fireEvent(SystemJobEventName.ON_EXCEPTIONAL_EVENT, Optional.of(th), onExcpetionalEvent, true);
                     }
-
                 }
             }
         }

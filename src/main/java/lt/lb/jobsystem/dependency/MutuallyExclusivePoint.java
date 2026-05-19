@@ -1,9 +1,9 @@
 package lt.lb.jobsystem.dependency;
 
+import java.io.Serializable;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import lt.lb.jobsystem.Job;
-import lt.lb.jobsystem.events.JobEvent;
 import lt.lb.jobsystem.events.JobEventListener;
 import lt.lb.jobsystem.events.SystemJobEventName;
 
@@ -16,13 +16,13 @@ import lt.lb.jobsystem.events.SystemJobEventName;
  */
 public class MutuallyExclusivePoint implements Dependency {
 
-    protected Map<String, Job> jobs = new ConcurrentHashMap<>();
+    protected Map<Serializable, Job> jobs = new ConcurrentHashMap<>();
 
     public void addSharingJob(final Job job) {
         job.addDependency(this);
-        final String id = job.getID();
+        final Serializable id = job.getID();
         jobs.put(id, job);
-        JobEventListener jobEventListener = (JobEvent event) -> {
+        JobEventListener jobEventListener = (j,c,d) -> {
             jobs.remove(id); // remove the job, if such still exists
         };
 
@@ -44,7 +44,7 @@ public class MutuallyExclusivePoint implements Dependency {
 
     @Override
     public boolean isCompleted(Job job) {
-        String id = job.getID();
+        Serializable id = job.getID();
         if (!jobs.containsKey(id)) { // check if it is in jobs
             return true;
         } else {
