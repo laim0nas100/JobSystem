@@ -4,12 +4,7 @@ import com.github.laim0nas100.fastid.FastID;
 import com.github.laim0nas100.fastid.FastIDGen;
 import java.io.Serializable;
 import java.util.ArrayList;
-import java.util.Collection;
-import java.util.EnumMap;
-import java.util.HashMap;
-import java.util.LinkedList;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.Callable;
@@ -24,6 +19,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 
 import lt.lb.jobsystem.dependency.Dependency;
+import lt.lb.jobsystem.events.EventListeners;
 import lt.lb.jobsystem.events.JobEventListener;
 import lt.lb.jobsystem.events.SystemJobDependency;
 import lt.lb.jobsystem.events.SystemJobEventName;
@@ -41,8 +37,7 @@ public class Job<T> implements RunnableFuture<T> {
     protected List<Job> doAfter;
     public final Serializable id;
 
-    protected Map<String, Collection<JobEventListener>> listeners;
-    protected EnumMap<SystemJobEventName, Collection<JobEventListener>> systemListeners = new EnumMap<>(SystemJobEventName.class);
+    protected EventListeners listeners = new EventListeners();
 
     protected final AtomicInteger flags = new AtomicInteger(0);
 
@@ -59,6 +54,11 @@ public class Job<T> implements RunnableFuture<T> {
     static final int CANCELLED = 1 << 9;
     static final int DONE = 1 << 10;
 
+    // upper 16 bits = failedToStart counter
+    static final int FAILED_SHIFT = 16;
+    static final int FAILED_INC = 1 << FAILED_SHIFT;
+    static final int FAILED_MASK = 0xFFFF0000;
+
     static final int REMOVABLE_MASK
             = DISCARDED
             | SUCCESSFUL
@@ -66,8 +66,6 @@ public class Job<T> implements RunnableFuture<T> {
             | EXCEPTIONAL
             | INTERRUPTED
             | DONE;
-
-    protected AtomicInteger failedToStart = new AtomicInteger(0);
 
     protected Job canceledParent;
     protected Job canceledRoot;
@@ -205,22 +203,22 @@ public class Job<T> implements RunnableFuture<T> {
         return cancelInner(interrupt, propogate, this);
     }
 
-    private boolean cancelInner(boolean interrupt, boolean propogate, Job root) {
+    protected boolean cancelInner(boolean interrupt, boolean propogate, Job root) {
 
-        if (!trySetFlag(CANCELLED)) {
-            return false;
-        }
-        boolean canceledOk = task.cancel(interrupt);
-        fireSystemEvent(SystemJobEventName.ON_CANCEL);
-        if (propogate && doAfter != null) {
-            for (Job j : this.doAfter) {
-                j.canceledRoot = root;
-                j.canceledParent = this;
-                j.cancelInner(interrupt, propogate, root);
-
+        if (trySetFlag(CANCELLED)) {
+            boolean canceledOk = task.cancel(interrupt);
+            fireSystemEvent(SystemJobEventName.ON_CANCEL);
+            if (propogate && doAfter != null) {
+                for (Job j : this.doAfter) {
+                    j.canceledRoot = root;
+                    j.canceledParent = this;
+                    j.cancelInner(interrupt, propogate, root);
+                }
             }
+            return canceledOk;
         }
-        return canceledOk;
+
+        return false;
     }
 
     /**
@@ -256,6 +254,11 @@ public class Job<T> implements RunnableFuture<T> {
         return true;
     }
 
+    /**
+     *
+     * @return whether this task is even possible to run (all dependencies are
+     * possible and is not removable)
+     */
     public boolean isPossibleToRun() {
         if (isRemovable()) {
             return false;
@@ -283,11 +286,10 @@ public class Job<T> implements RunnableFuture<T> {
             }
 
             updated = current | flag;
-            boolean ok = flags.compareAndSet(current, updated);
-            if (ok) {
-                return ok;
+            if (flags.compareAndSet(current, updated)) {
+                return true;
             }
-            LockSupport.parkNanos(1);
+            LockSupport.parkNanos(1);// backoff
 
         } while (true);
     }
@@ -308,7 +310,7 @@ public class Job<T> implements RunnableFuture<T> {
             if (ok) {
                 return ok;
             }
-            LockSupport.parkNanos(1);
+            LockSupport.parkNanos(1);// backoff
 
         } while (true);
     }
@@ -327,8 +329,7 @@ public class Job<T> implements RunnableFuture<T> {
             if (current == updated) {
                 return;
             }
-            boolean ok = flags.compareAndSet(current, updated);
-            if (ok) {
+            if (flags.compareAndSet(current, updated)) {
                 return;
             }
             LockSupport.parkNanos(1);// backoff
@@ -353,8 +354,7 @@ public class Job<T> implements RunnableFuture<T> {
                 return;
             }
 
-            boolean ok = flags.compareAndSet(current, updated);
-            if (ok) {
+            if (flags.compareAndSet(current, updated)) {
                 return;
             }
             LockSupport.parkNanos(1);// backoff
@@ -363,6 +363,31 @@ public class Job<T> implements RunnableFuture<T> {
 
     protected boolean hasFlag(int flag) {
         return (flags.get() & flag) != 0;
+    }
+
+    protected int incrementFailedToStart() {
+        int current;
+        int updated;
+
+        int count;
+        do {
+            current = flags.get();
+
+            count = (current >>> FAILED_SHIFT);
+
+            // saturate at 65535
+            if (count == 0xFFFF) {
+                return count;
+            }
+
+            updated = current + FAILED_INC;
+            if (flags.compareAndSet(current, updated)) {
+                return count + 1;
+            }
+            LockSupport.parkNanos(1);// backoff
+
+        } while (true);
+
     }
 
     /**
@@ -465,7 +490,7 @@ public class Job<T> implements RunnableFuture<T> {
      * @return
      */
     public int getFailedToStart() {
-        return this.failedToStart.get();
+        return (flags.get() >>> FAILED_SHIFT);
     }
 
     /**
@@ -475,12 +500,12 @@ public class Job<T> implements RunnableFuture<T> {
      */
     public List<Job> getCanceledChain() {
 
-        LinkedList<Job> chain = new LinkedList<>();
+        ArrayList<Job> chain = new ArrayList<>();
 
         Job me = this;
         while (true) {
             if (me != null && me.isCancelled()) {
-                chain.addLast(me);
+                chain.add(me);
                 me = me.canceledParent;
 
             } else {
@@ -553,7 +578,7 @@ public class Job<T> implements RunnableFuture<T> {
     }
 
     /**
-     * Chain jobs on success. Given job must execute before this.
+     * Chain jobs on success. Given job must successfully execute before this.
      *
      * @param job
      * @return
@@ -563,7 +588,7 @@ public class Job<T> implements RunnableFuture<T> {
     }
 
     /**
-     * Chain jobs on success. Given job must execute after this.
+     * Chain jobs on success. Given job must successfully execute after this.
      *
      * @param job
      * @return
@@ -612,7 +637,7 @@ public class Job<T> implements RunnableFuture<T> {
             return;
         }
         if (!canRun()) {
-            failedToStart.incrementAndGet();
+            incrementFailedToStart();
             fireSystemEvent(SystemJobEventName.ON_FAILED_TO_START);
             clearFlag(SCHEDULED);
             return;
@@ -624,9 +649,9 @@ public class Job<T> implements RunnableFuture<T> {
 
             try {
                 runTask();
-                task.get();
+                T result = task.get();
                 setFlag(SUCCESSFUL);
-                 fireSystemEvent(SystemJobEventName.ON_SUCCESSFUL);
+                fireSystemEvent(SystemJobEventName.ON_SUCCESSFUL, Optional.ofNullable(result));
             } catch (InterruptedException e) {
                 setFlag(INTERRUPTED);
                 fireSystemEvent(SystemJobEventName.ON_INTERRUPTED);
@@ -649,11 +674,19 @@ public class Job<T> implements RunnableFuture<T> {
     }
 
     /**
-     * You can overwrite to run actual task on a different executor, override
+     * You can override to run actual task on a different executor, override
      * with caution.
      */
     protected void runTask() {
         task.run();
+    }
+
+    /**
+     * You can override this to save a JobExecutor reference, but don't forget
+     * to call listeners.assignJobExecutorMap, or just call super.
+     */
+    protected void executorSubmission(JobExecutor executor) {
+        listeners.assignJobExecutorMap(executor.getExecutorJobListeners());
     }
 
     /**
@@ -662,12 +695,9 @@ public class Job<T> implements RunnableFuture<T> {
      * @param name
      * @param listener
      */
-    public void addListener(String name, JobEventListener listener) {
+    public void addListener(Serializable name, JobEventListener listener) {
         assertNoChange("listeners");
-        if (listeners == null) {
-            listeners = new HashMap<>();
-        }
-        listeners.computeIfAbsent(name, n -> new LinkedList<>()).add(listener);
+        listeners.add(name, listener);
     }
 
     /**
@@ -678,29 +708,31 @@ public class Job<T> implements RunnableFuture<T> {
      */
     public void addListener(SystemJobEventName name, JobEventListener listener) {
         assertNoChange("systemListeners");
-        systemListeners.computeIfAbsent(name, n -> new LinkedList<>()).add(listener);
+        listeners.add(name, listener);
     }
 
-    private void assertNoChange(String msg) {
+    protected void assertNoChange(String msg) {
         if (isScheduled()) {
             throw new IllegalStateException("Job has been scheduled, " + msg + " should not change");
         }
     }
 
     /**
+     * Fire event with empty data
      *
      * @param event
      */
-    public void fireEvent(Object classifier, Optional data) {
-        Objects.requireNonNull(classifier);
-        if (classifier instanceof SystemJobEventName) {
-            fireSystemEvent((SystemJobEventName) classifier, data);
-        } else {
-            if (listeners != null) {
-                fireEvent(classifier, data, listeners.getOrDefault(classifier, null), false);
-            }
-        }
+    public void fireEvent(Serializable classifier) {
+        fireEvent(classifier, Optional.empty(), listeners.get(classifier), false);
+    }
 
+    /**
+     * Fire event with optional data
+     *
+     * @param event
+     */
+    public void fireEvent(Serializable classifier, Optional data) {
+        fireEvent(classifier, data, listeners.get(classifier), false);
     }
 
     /**
@@ -720,7 +752,7 @@ public class Job<T> implements RunnableFuture<T> {
      * @param data
      */
     public void fireSystemEvent(SystemJobEventName eventName, Optional data) {
-        fireEvent(eventName, data, systemListeners.getOrDefault(eventName, null), false);
+        fireEvent(eventName, data, listeners.get(eventName), false);
     }
 
     /**
@@ -729,7 +761,7 @@ public class Job<T> implements RunnableFuture<T> {
      * @param collection listeners to trigger
      * @param ignore whether to ignore exceptions
      */
-    protected void fireEvent(Object classifier, Optional data, Collection<JobEventListener> collection, boolean ignore) {
+    protected void fireEvent(Serializable classifier, Optional data, List<JobEventListener> collection, boolean ignore) {
         if (collection == null) {
             return;
         }
@@ -738,7 +770,7 @@ public class Job<T> implements RunnableFuture<T> {
                 listener.onEvent(this, classifier, data);
             } catch (Throwable th) {
                 if (!ignore) {
-                    Collection<JobEventListener> onExcpetionalEvent = systemListeners.getOrDefault(SystemJobEventName.ON_EXCEPTIONAL_EVENT, null);
+                    List<JobEventListener> onExcpetionalEvent = listeners.get(SystemJobEventName.ON_EXCEPTIONAL_EVENT);
                     setFlag(EXCEPTIONAL_EVENT);
                     if (onExcpetionalEvent != null) {
                         fireEvent(SystemJobEventName.ON_EXCEPTIONAL_EVENT, Optional.of(th), onExcpetionalEvent, true);
@@ -748,10 +780,6 @@ public class Job<T> implements RunnableFuture<T> {
         }
     }
 
-    /**
-     *
-     * @return
-     */
     public Runnable asRunnable() {
         return this::run;
     }

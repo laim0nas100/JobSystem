@@ -1,8 +1,13 @@
 package lt.lb.jobsystem;
 
+import java.io.Serializable;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.ExecutionException;
@@ -31,6 +36,7 @@ public class JobExecutor {
     protected Collection<Job> jobs = new ConcurrentLinkedDeque<>();
 
     protected JobEventListener rescanJobs = (j, c, d) -> addScanRequest();
+    protected final Map<Serializable, List<JobEventListener>> jobExecutorProvidedListeners;
 
     protected volatile CompletableFuture awaitJobEmpty = new CompletableFuture();
     protected AtomicInteger rrc;
@@ -56,7 +62,20 @@ public class JobExecutor {
         this.exe = exe;
         this.rescanThreshold = Math.max(1, rescanThrottle);
         this.rrc = new AtomicInteger(rescanThreshold);
+        this.jobExecutorProvidedListeners = defaultListenerMap();
 
+    }
+
+    protected Map<Serializable, List<JobEventListener>> defaultListenerMap() {
+        Map<Serializable, List<JobEventListener>> map = new HashMap<>();
+        List<JobEventListener> listFailed = new ArrayList<>(1);
+        listFailed.add(rescanJobs);
+        List<JobEventListener> listDone = new ArrayList<>(1);
+        listDone.add(rescanJobs);
+
+        map.put(SystemJobEventName.ON_FAILED_TO_START, listFailed);
+        map.put(SystemJobEventName.ON_DONE, listDone);
+        return map;
     }
 
     /**
@@ -68,8 +87,7 @@ public class JobExecutor {
         if (isShutdown) {
             throw new IllegalStateException("Shutdown was called");
         }
-        job.addListener(SystemJobEventName.ON_DONE, rescanJobs);
-        job.addListener(SystemJobEventName.ON_FAILED_TO_START, rescanJobs);
+        job.executorSubmission(this);
         jobs.add(job);
         addScanRequest();
     }
@@ -84,8 +102,7 @@ public class JobExecutor {
             throw new IllegalStateException("Shutdown was called");
         }
         for (Job job : iter) {
-            job.addListener(SystemJobEventName.ON_DONE, rescanJobs);
-            job.addListener(SystemJobEventName.ON_FAILED_TO_START, rescanJobs);
+            job.executorSubmission(this);
             jobs.add(job);
         }
         addScanRequest();
@@ -94,15 +111,26 @@ public class JobExecutor {
     /**
      * Submits all jobs
      *
-     * @param jobs
+     * @param jobArray
      */
-    public void submitAll(Job... jobs) {
-        submitAll(Arrays.asList(jobs));
+    public void submitAll(Job... jobArray) {
+        if (isShutdown) {
+            throw new IllegalStateException("Shutdown was called");
+        }
+        for (Job job : jobArray) {
+            job.executorSubmission(this);
+            jobs.add(job);
+        }
+        addScanRequest();
+    }
+    
+    public Map<Serializable,List<JobEventListener>> getExecutorJobListeners(){
+        return jobExecutorProvidedListeners;
     }
 
     protected void addScanRequest() {
         if (rrc.getAndDecrement() > 0) {
-            exe.execute(() -> rescanJobs0());
+            exe.execute(this::rescanJobs0);
         } else {
             rrc.incrementAndGet();
             rescanDept.set(true);
