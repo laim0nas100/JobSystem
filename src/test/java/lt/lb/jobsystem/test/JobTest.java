@@ -178,8 +178,12 @@ public class JobTest {
 
 //        executor.submitAll(allJobs);
             executor.shutdownAndWait(1, TimeUnit.DAYS);
+
             assert atomLong.get() == longVal1.numb;
             assert longVal1.numb == longVal2.numb;
+            
+            exeServ.shutdown();
+            exeServ.awaitTermination(1, TimeUnit.DAYS);
         }
 
     }

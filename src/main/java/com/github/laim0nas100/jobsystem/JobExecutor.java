@@ -2,7 +2,6 @@ package com.github.laim0nas100.jobsystem;
 
 import java.io.Serializable;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -29,20 +28,20 @@ import com.github.laim0nas100.jobsystem.events.SystemJobEventName;
  * @author laim0nas100
  */
 public class JobExecutor {
-
+    
     protected Executor exe;
-
+    
     protected boolean isShutdown = false;
     protected Collection<Job> jobs = new ConcurrentLinkedDeque<>();
-
+    
     protected JobEventListener rescanJobs = (j, c, d) -> addScanRequest();
     protected final Map<Serializable, List<JobEventListener>> jobExecutorProvidedListeners;
-
-    protected volatile CompletableFuture awaitJobEmpty = new CompletableFuture();
-    protected AtomicInteger rrc;
-    protected final int rescanThreshold;
-    protected AtomicBoolean rescanDept = new AtomicBoolean(false);
-    protected AtomicBoolean reasigningAwaitFuture = new AtomicBoolean(false);
+    
+    protected final CompletableFuture[] awaitJobEmpty = new CompletableFuture[2];
+    protected final AtomicBoolean jobEmptyFlip = new AtomicBoolean(false);
+    protected final AtomicInteger scanRequest = new AtomicInteger(0);
+    protected final AtomicInteger inScan = new AtomicInteger(0);
+    protected final int rescanThrottle;
 
     /**
      *
@@ -60,19 +59,21 @@ public class JobExecutor {
      */
     public JobExecutor(int rescanThrottle, Executor exe) {
         this.exe = exe;
-        this.rescanThreshold = Math.max(1, rescanThrottle);
-        this.rrc = new AtomicInteger(rescanThreshold);
+        this.rescanThrottle = Math.max(1, rescanThrottle);
         this.jobExecutorProvidedListeners = defaultListenerMap();
-
+        for (int i = 0; i < awaitJobEmpty.length; i++) {
+            awaitJobEmpty[i] = new CompletableFuture();
+        }
+        
     }
-
+    
     protected Map<Serializable, List<JobEventListener>> defaultListenerMap() {
         Map<Serializable, List<JobEventListener>> map = new HashMap<>();
         List<JobEventListener> listFailed = new ArrayList<>(1);
         listFailed.add(rescanJobs);
         List<JobEventListener> listDone = new ArrayList<>(1);
         listDone.add(rescanJobs);
-
+        
         map.put(SystemJobEventName.ON_FAILED_TO_START, listFailed);
         map.put(SystemJobEventName.ON_DONE, listDone);
         return map;
@@ -124,17 +125,17 @@ public class JobExecutor {
         addScanRequest();
     }
     
-    public Map<Serializable,List<JobEventListener>> getExecutorJobListeners(){
+    public Map<Serializable, List<JobEventListener>> getExecutorJobListeners() {
         return jobExecutorProvidedListeners;
     }
-
+    
     protected void addScanRequest() {
-        if (rrc.getAndDecrement() > 0) {
-            exe.execute(this::rescanJobs0);
+        if (scanRequest.incrementAndGet() <= rescanThrottle) {
+            exe.execute(this::rescanJobsIter);
         } else {
-            rrc.incrementAndGet();
-            rescanDept.set(true);
+            scanRequest.decrementAndGet();
         }
+        
     }
 
     /**
@@ -148,57 +149,59 @@ public class JobExecutor {
      * dependencies are used.
      */
     public void rescanJobs() {
-        this.addScanRequest();
+        addScanRequest();
     }
-
-    private void rescanJobs0() {
-        Iterator<Job> iterator = jobs.iterator();
-        while (iterator.hasNext()) {
-            Job job = iterator.next();
-            if (job == null) {
-                continue;
-            }
-            if (!job.isPossibleToRun()) {
-                if (job.trySetFlag(Job.DISCARDED)) {
-                    iterator.remove();
-                    job.fireSystemEvent(SystemJobEventName.ON_DISCARDED);
-                } else { // job was allready discarded but reinserted so don't fire event again
-                    if (job.trySetFlag(Job.REPEATED_DISCARD)) { // thread safety
+    
+    private void rescanJobsIter() {
+        scanRequest.decrementAndGet();
+        inScan.incrementAndGet();
+        try {
+            Iterator<Job> iterator = jobs.iterator();
+            while (iterator.hasNext()) {
+                Job job = iterator.next();
+                if (job == null) {
+                    continue;
+                }
+                if (!job.isPossibleToRun()) {
+                    if (job.trySetFlag(Job.DISCARDED)) {
                         iterator.remove();
-                        job.clearFlag(Job.REPEATED_DISCARD);
+                        job.fireSystemEvent(SystemJobEventName.ON_DISCARDED);
+                    } else { // job was allready discarded but reinserted so don't fire event again
+                        if (job.trySetFlag(Job.REPEATED_DISCARD)) { // thread safety
+                            iterator.remove();
+                            job.clearFlag(Job.REPEATED_DISCARD);
+                        }
+                    }
+                    if (job.isAborted()) {// cancelled and not executed
+                        job.fireSystemEvent(SystemJobEventName.ON_ABORTED);
+                    }
+                    if (job.trySetFlag(DONE)) {
+                        job.fireSystemEvent(SystemJobEventName.ON_DONE);
+                    }
+                } else if (!job.isExecuted() && !job.isScheduled() && job.canRun()) {
+                    if (job.trySetFlag(Job.SCHEDULED)) {
+                        job.fireSystemEvent(SystemJobEventName.ON_SCHEDULED);
+                        try {
+                            //we dont control executor, so just in case it is bad
+                            exe.execute(job);
+                        } catch (Throwable t) {
+                        }
                     }
                 }
-                if (job.isAborted()) {// cancelled and not executed
-                    job.fireSystemEvent(SystemJobEventName.ON_ABORTED);
-                }
-                if (job.trySetFlag(DONE)) {
-                    job.fireSystemEvent(SystemJobEventName.ON_DONE);
-                }
-            } else if (!job.isExecuted() && !job.isScheduled() && job.canRun()) {
-                if (job.trySetFlag(Job.SCHEDULED)) {
-                    job.fireSystemEvent(SystemJobEventName.ON_SCHEDULED);
-                    try {
-                        //we dont control executor, so just in case it is bad
-                        exe.execute(job);
-                    } catch (Throwable t) {
-                    }
-                }
             }
+        } finally {
+            inScan.decrementAndGet();
+            
         }
-        if (isEmpty()) {
-            if (reasigningAwaitFuture.compareAndSet(false, true)) {
-                this.awaitJobEmpty.complete(null);
-                this.awaitJobEmpty = new CompletableFuture();
-                reasigningAwaitFuture.set(false);
-            }
-
+        
+        if (scanRequest.get() == 0 && inScan.get() == 0 && isEmpty()) {
+            boolean flip = jobEmptyFlip.get();
+            jobEmptyFlip.set(!flip);
+            int i = flip ? 0 : 1;
+            awaitJobEmpty[i].complete(null);
+            awaitJobEmpty[i] = new CompletableFuture();
         }
-        if (rescanThreshold <= rrc.incrementAndGet()) {
-            if (rescanDept.compareAndSet(true, false)) {
-                addScanRequest();
-            }
-        }
-
+        
     }
 
     /**
@@ -212,7 +215,7 @@ public class JobExecutor {
             }
         }
         return true;
-
+        
     }
 
     /**
@@ -228,8 +231,8 @@ public class JobExecutor {
      * waiter.
      */
     public void shutdown() {
-        this.isShutdown = true;
-        this.rescanJobs();
+        isShutdown = true;
+        rescanJobs();
     }
 
     /**
@@ -246,7 +249,7 @@ public class JobExecutor {
             return true;
         }
         try {
-            this.awaitJobEmpty.get(time, unit);
+            this.awaitJobEmpty[jobEmptyFlip.get() ? 0 : 1].get(time, unit);
         } catch (ExecutionException | TimeoutException ex) {
             return false;
         }
@@ -283,5 +286,5 @@ public class JobExecutor {
         shutdown();
         return awaitTermination(time, unit);
     }
-
+    
 }
