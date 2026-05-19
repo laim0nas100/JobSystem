@@ -1,12 +1,12 @@
-package lt.lb.jobsystem;
+package com.github.laim0nas100.jobsystem;
 
 import java.util.Collection;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Predicate;
-import lt.lb.jobsystem.dependency.Dependency;
-import lt.lb.jobsystem.dependency.JobDependency;
-import lt.lb.jobsystem.events.SystemJobDependency;
-import lt.lb.jobsystem.events.SystemJobEventName;
+import com.github.laim0nas100.jobsystem.dependency.Dependency;
+import com.github.laim0nas100.jobsystem.dependency.JobDependency;
+import com.github.laim0nas100.jobsystem.events.SystemJobDependency;
+import com.github.laim0nas100.jobsystem.events.SystemJobEventName;
 
 /**
  *

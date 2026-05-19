@@ -1,12 +1,12 @@
-package lt.lb.jobsystem.dependency;
+package com.github.laim0nas100.jobsystem.dependency;
 
 import java.io.Serializable;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
-import lt.lb.jobsystem.Job;
-import lt.lb.jobsystem.events.JobEventListener;
-import lt.lb.jobsystem.events.SystemJobEventName;
+import com.github.laim0nas100.jobsystem.Job;
+import com.github.laim0nas100.jobsystem.events.JobEventListener;
+import com.github.laim0nas100.jobsystem.events.SystemJobEventName;
 
 /**
  *

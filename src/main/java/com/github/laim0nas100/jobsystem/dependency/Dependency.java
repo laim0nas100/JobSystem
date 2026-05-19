@@ -1,6 +1,6 @@
-package lt.lb.jobsystem.dependency;
+package com.github.laim0nas100.jobsystem.dependency;
 
-import lt.lb.jobsystem.Job;
+import com.github.laim0nas100.jobsystem.Job;
 
 /**
  * Dependency with no explicit job association. 

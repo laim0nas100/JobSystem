@@ -1,7 +1,7 @@
-package lt.lb.jobsystem.events;
+package com.github.laim0nas100.jobsystem.events;
 
 import java.util.Optional;
-import lt.lb.jobsystem.Job;
+import com.github.laim0nas100.jobsystem.Job;
 
 /**
  *

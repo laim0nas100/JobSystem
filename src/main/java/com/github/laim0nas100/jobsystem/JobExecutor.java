@@ -1,4 +1,4 @@
-package lt.lb.jobsystem;
+package com.github.laim0nas100.jobsystem;
 
 import java.io.Serializable;
 import java.util.ArrayList;
@@ -17,9 +17,9 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
-import static lt.lb.jobsystem.Job.DONE;
-import lt.lb.jobsystem.events.JobEventListener;
-import lt.lb.jobsystem.events.SystemJobEventName;
+import static com.github.laim0nas100.jobsystem.Job.DONE;
+import com.github.laim0nas100.jobsystem.events.JobEventListener;
+import com.github.laim0nas100.jobsystem.events.SystemJobEventName;
 
 /**
  * Job executor with provided base executor. No cleanup is necessary. Job

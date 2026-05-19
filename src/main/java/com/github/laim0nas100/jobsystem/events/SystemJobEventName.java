@@ -1,4 +1,4 @@
-package lt.lb.jobsystem.events;
+package com.github.laim0nas100.jobsystem.events;
 
 import java.io.Serializable;
 import java.util.concurrent.ExecutionException;

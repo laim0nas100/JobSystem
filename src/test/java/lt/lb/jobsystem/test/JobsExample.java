@@ -7,12 +7,12 @@ import java.util.Random;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
-import lt.lb.jobsystem.Dependencies;
-import lt.lb.jobsystem.Job;
-import lt.lb.jobsystem.JobExecutor;
-import lt.lb.jobsystem.ScheduledJobExecutor;
-import lt.lb.jobsystem.dependency.Dependency;
-import lt.lb.jobsystem.events.SystemJobEventName;
+import com.github.laim0nas100.jobsystem.Dependencies;
+import com.github.laim0nas100.jobsystem.Job;
+import com.github.laim0nas100.jobsystem.JobExecutor;
+import com.github.laim0nas100.jobsystem.ScheduledJobExecutor;
+import com.github.laim0nas100.jobsystem.dependency.Dependency;
+import com.github.laim0nas100.jobsystem.events.SystemJobEventName;
 
 /**
  *

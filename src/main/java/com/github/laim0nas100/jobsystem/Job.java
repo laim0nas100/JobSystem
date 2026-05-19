@@ -1,4 +1,4 @@
-package lt.lb.jobsystem;
+package com.github.laim0nas100.jobsystem;
 
 import com.github.laim0nas100.fastid.FastID;
 import com.github.laim0nas100.fastid.FastIDGen;
@@ -18,11 +18,11 @@ import java.util.concurrent.locks.LockSupport;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
-import lt.lb.jobsystem.dependency.Dependency;
-import lt.lb.jobsystem.events.EventListeners;
-import lt.lb.jobsystem.events.JobEventListener;
-import lt.lb.jobsystem.events.SystemJobDependency;
-import lt.lb.jobsystem.events.SystemJobEventName;
+import com.github.laim0nas100.jobsystem.dependency.Dependency;
+import com.github.laim0nas100.jobsystem.events.EventListeners;
+import com.github.laim0nas100.jobsystem.events.JobEventListener;
+import com.github.laim0nas100.jobsystem.events.SystemJobDependency;
+import com.github.laim0nas100.jobsystem.events.SystemJobEventName;
 
 /**
  *

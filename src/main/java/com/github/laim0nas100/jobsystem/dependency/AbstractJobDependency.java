@@ -1,7 +1,7 @@
-package lt.lb.jobsystem.dependency;
+package com.github.laim0nas100.jobsystem.dependency;
 
 import java.util.Objects;
-import lt.lb.jobsystem.Job;
+import com.github.laim0nas100.jobsystem.Job;
 
 /**
  * @author laim0nas100

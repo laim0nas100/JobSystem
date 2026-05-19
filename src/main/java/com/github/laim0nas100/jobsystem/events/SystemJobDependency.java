@@ -1,7 +1,7 @@
-package lt.lb.jobsystem.events;
+package com.github.laim0nas100.jobsystem.events;
 
-import lt.lb.jobsystem.Job;
-import lt.lb.jobsystem.dependency.AbstractJobDependency;
+import com.github.laim0nas100.jobsystem.Job;
+import com.github.laim0nas100.jobsystem.dependency.AbstractJobDependency;
 
 /**
  * System job dependency support all system events defined in
