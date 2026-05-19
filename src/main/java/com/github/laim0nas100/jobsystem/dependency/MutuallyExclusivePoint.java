@@ -10,7 +10,7 @@ import com.github.laim0nas100.jobsystem.events.SystemJobEventName;
 /**
  *
  * Simulates shared data that can only be accessed by one thread (job) at a time. A
- * job can be in multiple exclusive points. It is paramount that Job UUIDs are unique.
+ * job can be in multiple exclusive points. It is paramount that Job IDs are unique.
  *
  * @author laim0nas100
  */

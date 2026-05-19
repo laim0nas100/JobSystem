@@ -13,7 +13,6 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
 import static com.github.laim0nas100.jobsystem.Job.DONE;
@@ -28,17 +27,17 @@ import com.github.laim0nas100.jobsystem.events.SystemJobEventName;
  * @author laim0nas100
  */
 public class JobExecutor {
-    
+
     protected Executor exe;
-    
+
     protected boolean isShutdown = false;
     protected Collection<Job> jobs = new ConcurrentLinkedDeque<>();
-    
+
     protected JobEventListener rescanJobs = (j, c, d) -> addScanRequest();
     protected final Map<Serializable, List<JobEventListener>> jobExecutorProvidedListeners;
-    
-    protected final CompletableFuture[] awaitJobEmpty = new CompletableFuture[2];
-    protected final AtomicBoolean jobEmptyFlip = new AtomicBoolean(false);
+
+    protected final CompletableFuture[] awaitJobEmpty = new CompletableFuture[]{new CompletableFuture(), new CompletableFuture()};
+    protected final AtomicInteger flipper = new AtomicInteger(0);
     protected final AtomicInteger scanRequest = new AtomicInteger(0);
     protected final AtomicInteger inScan = new AtomicInteger(0);
     protected final int rescanThrottle;
@@ -61,19 +60,15 @@ public class JobExecutor {
         this.exe = exe;
         this.rescanThrottle = Math.max(1, rescanThrottle);
         this.jobExecutorProvidedListeners = defaultListenerMap();
-        for (int i = 0; i < awaitJobEmpty.length; i++) {
-            awaitJobEmpty[i] = new CompletableFuture();
-        }
-        
     }
-    
+
     protected Map<Serializable, List<JobEventListener>> defaultListenerMap() {
         Map<Serializable, List<JobEventListener>> map = new HashMap<>();
         List<JobEventListener> listFailed = new ArrayList<>(1);
         listFailed.add(rescanJobs);
         List<JobEventListener> listDone = new ArrayList<>(1);
         listDone.add(rescanJobs);
-        
+
         map.put(SystemJobEventName.ON_FAILED_TO_START, listFailed);
         map.put(SystemJobEventName.ON_DONE, listDone);
         return map;
@@ -124,18 +119,18 @@ public class JobExecutor {
         }
         addScanRequest();
     }
-    
+
     public Map<Serializable, List<JobEventListener>> getExecutorJobListeners() {
         return jobExecutorProvidedListeners;
     }
-    
+
     protected void addScanRequest() {
         if (scanRequest.incrementAndGet() <= rescanThrottle) {
             exe.execute(this::rescanJobsIter);
         } else {
             scanRequest.decrementAndGet();
         }
-        
+
     }
 
     /**
@@ -151,7 +146,7 @@ public class JobExecutor {
     public void rescanJobs() {
         addScanRequest();
     }
-    
+
     private void rescanJobsIter() {
         scanRequest.decrementAndGet();
         inScan.incrementAndGet();
@@ -191,17 +186,19 @@ public class JobExecutor {
             }
         } finally {
             inScan.decrementAndGet();
-            
+
         }
-        
+
         if (scanRequest.get() == 0 && inScan.get() == 0 && isEmpty()) {
-            boolean flip = jobEmptyFlip.get();
-            jobEmptyFlip.set(!flip);
-            int i = flip ? 0 : 1;
-            awaitJobEmpty[i].complete(null);
-            awaitJobEmpty[i] = new CompletableFuture();
+
+            synchronized (flipper) {
+                int i = flipper.getAndUpdate(u -> (u + 1) % 2);// new waiters wait on the other index
+                awaitJobEmpty[i].complete(null); // complete waiting and reset
+                awaitJobEmpty[i] = new CompletableFuture();
+            }
+
         }
-        
+
     }
 
     /**
@@ -215,7 +212,7 @@ public class JobExecutor {
             }
         }
         return true;
-        
+
     }
 
     /**
@@ -249,7 +246,13 @@ public class JobExecutor {
             return true;
         }
         try {
-            this.awaitJobEmpty[jobEmptyFlip.get() ? 0 : 1].get(time, unit);
+            CompletableFuture fut;
+            synchronized (flipper) {
+                fut = awaitJobEmpty[flipper.get()];
+            }
+            addScanRequest();
+
+            fut.get(time, unit);
         } catch (ExecutionException | TimeoutException ex) {
             return false;
         }
@@ -286,5 +289,5 @@ public class JobExecutor {
         shutdown();
         return awaitTermination(time, unit);
     }
-    
+
 }

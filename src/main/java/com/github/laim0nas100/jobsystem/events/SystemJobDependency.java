@@ -5,28 +5,24 @@ import com.github.laim0nas100.jobsystem.dependency.AbstractJobDependency;
 
 /**
  * System job dependency support all system events defined in
- * SystemJobEventName.
+ * {@link SystemJobEventName}
  *
  * @author laim0nas100
  */
-public class SystemJobDependency extends AbstractJobDependency {
-
-    public final SystemJobEventName enumName;
+public class SystemJobDependency extends AbstractJobDependency<SystemJobEventName> {
 
     public SystemJobDependency(Job j, SystemJobEventName event) {
-        super(j, event.eventName);
-        this.enumName = event;
-
+        super(j, event);
     }
 
     @Override
     public boolean isPossible() {
-        return !impossible(job, enumName);
+        return !impossible(job, classifier);
     }
 
     @Override
     public boolean isCompleted(Job caller) {
-        return isCompleted(job, enumName);
+        return isCompleted(job, classifier);
     }
 
     public static boolean impossible(Job job, SystemJobEventName enumName) {
@@ -67,10 +63,8 @@ public class SystemJobDependency extends AbstractJobDependency {
             case ON_ATTEMPTED: {
                 return job.isAborted();
             }
-            default: {
-                throw new IllegalArgumentException("Failed to qualify enum " + enumName);
-            }
         }
+        throw new IllegalArgumentException("Failed to qualify enum " + enumName);
     }
 
     public static boolean isCompleted(Job job, SystemJobEventName enumName) {
@@ -111,10 +105,8 @@ public class SystemJobDependency extends AbstractJobDependency {
             case ON_ATTEMPTED: {
                 return job.isAttempted();
             }
-            default: {
-                throw new IllegalArgumentException("Failed to qualify enum " + enumName);
-            }
         }
+        throw new IllegalArgumentException("Failed to qualify enum " + enumName);
     }
 
 }

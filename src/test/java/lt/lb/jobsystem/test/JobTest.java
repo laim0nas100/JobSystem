@@ -104,8 +104,9 @@ public class JobTest {
     @Test
     public void exclusiveInterestPointTest() throws InterruptedException {
 
-        for (int t = 0; t < 10; t++) {
-            ExecutorService exeServ = Executors.newFixedThreadPool(8);
+        for (int t = 0; t < 100; t++) {
+            ExecutorService exeServ = Executors.newFixedThreadPool(5);
+//            ExecutorService exeServ = Executors.newVirtualThreadPerTaskExecutor();
             JobExecutor executor = new ScheduledJobExecutor(exeServ);
             AtomicLong atomLong = new AtomicLong(0L);
             LongHolder longVal1 = new LongHolder(0L);

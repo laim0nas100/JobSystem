@@ -2,18 +2,19 @@ package com.github.laim0nas100.jobsystem.dependency;
 
 import java.util.Objects;
 import com.github.laim0nas100.jobsystem.Job;
+import java.io.Serializable;
 
 /**
  * @author laim0nas100
  */
-public abstract class AbstractJobDependency implements JobDependency {
+public abstract class AbstractJobDependency<T extends Serializable> implements JobDependency {
 
-    protected Job job;
-    protected String onEvent;
+    protected final Job job;
+    protected final T classifier;
 
-    public AbstractJobDependency(Job job, String onEvent) {
-        this.job = job;
-        this.onEvent = onEvent;
+    public AbstractJobDependency(Job job, T classifier) {
+        this.job = Objects.requireNonNull(job);
+        this.classifier = Objects.requireNonNull(classifier);
     }
 
     @Override
@@ -28,7 +29,7 @@ public abstract class AbstractJobDependency implements JobDependency {
             return false;
         }
         final AbstractJobDependency other = (AbstractJobDependency) obj;
-        if (!Objects.equals(this.onEvent, other.onEvent)) {
+        if (!Objects.equals(this.classifier, other.classifier)) {
             return false;
         }
         if (!Objects.equals(this.job, other.job)) {
@@ -42,13 +43,15 @@ public abstract class AbstractJobDependency implements JobDependency {
         return job;
     }
 
-    
+    public T getClassifier() {
+        return classifier;
+    }
 
     @Override
     public int hashCode() {
         int hash = 5;
         hash = 83 * hash + Objects.hashCode(this.job);
-        hash = 83 * hash + Objects.hashCode(this.onEvent);
+        hash = 83 * hash + Objects.hashCode(this.classifier);
         return hash;
     }
 }
