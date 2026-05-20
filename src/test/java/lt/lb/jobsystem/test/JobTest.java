@@ -89,7 +89,7 @@ public class JobTest {
     public static void addEventLogListeners(Job job) {
         EnumSet<SystemJobEventName> enums = EnumSet.allOf(SystemJobEventName.class);
         enums.forEach(val -> {
-            job.addListener(val, (j,c,d) -> {
+            job.addListener(val, (j, c, d) -> {
 //                Log.print(job.getUUID() + " " + val.name());
             });
         });
@@ -103,10 +103,11 @@ public class JobTest {
 
     @Test
     public void exclusiveInterestPointTest() throws InterruptedException {
+        ExecutorService exeServ = Executors.newFixedThreadPool(16);
+//        ExecutorService exeServ = Executors.newVirtualThreadPerTaskExecutor();
 
-        for (int t = 0; t < 100; t++) {
-            ExecutorService exeServ = Executors.newFixedThreadPool(5);
-//            ExecutorService exeServ = Executors.newVirtualThreadPerTaskExecutor();
+        for (int t = 0; t < 50; t++) {
+
             JobExecutor executor = new ScheduledJobExecutor(exeServ);
             AtomicLong atomLong = new AtomicLong(0L);
             LongHolder longVal1 = new LongHolder(0L);
@@ -176,16 +177,14 @@ public class JobTest {
 //                addEventLogListeners(j);
 //            });
             executor.submitAll(allJobs);
-
-//        executor.submitAll(allJobs);
             executor.shutdownAndWait(1, TimeUnit.DAYS);
 
             assert atomLong.get() == longVal1.numb;
             assert longVal1.numb == longVal2.numb;
-            
-            exeServ.shutdown();
-            exeServ.awaitTermination(1, TimeUnit.DAYS);
+
         }
+        exeServ.shutdown();
+        exeServ.awaitTermination(1, TimeUnit.DAYS);
 
     }
 

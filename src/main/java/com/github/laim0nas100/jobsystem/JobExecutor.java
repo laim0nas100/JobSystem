@@ -53,12 +53,12 @@ public class JobExecutor {
     /**
      *
      * @param rescanThrottle how many concurrent rescan jobs can be happening (2
-     * by default)
+     * at least)
      * @param exe Main executor
      */
     public JobExecutor(int rescanThrottle, Executor exe) {
         this.exe = exe;
-        this.rescanThrottle = Math.max(1, rescanThrottle);
+        this.rescanThrottle = Math.max(2, rescanThrottle);
         this.jobExecutorProvidedListeners = defaultListenerMap();
     }
 
@@ -126,7 +126,12 @@ public class JobExecutor {
 
     protected void addScanRequest() {
         if (scanRequest.incrementAndGet() <= rescanThrottle) {
-            exe.execute(this::rescanJobsIter);
+            try {
+                exe.execute(this::rescanJobsIter);
+            } catch (Throwable ex) {
+                rescanJobsIter();
+            }
+
         } else {
             scanRequest.decrementAndGet();
         }
@@ -186,17 +191,22 @@ public class JobExecutor {
             }
         } finally {
             inScan.decrementAndGet();
-
         }
 
-        if (scanRequest.get() == 0 && inScan.get() == 0 && isEmpty()) {
+        int sr = scanRequest.get();
+        int is = inScan.get();
 
-            synchronized (flipper) {
-                int i = flipper.getAndUpdate(u -> (u + 1) % 2);// new waiters wait on the other index
-                awaitJobEmpty[i].complete(null); // complete waiting and reset
-                awaitJobEmpty[i] = new CompletableFuture();
+        if (is == 0) {
+            if (sr > 0 && sr <= rescanThrottle) {
+                addScanRequest();
+            } else if (sr == 0 && isEmpty()) {
+
+                synchronized (flipper) {
+                    int i = flipper.getAndUpdate(u -> (u + 1) % 2);// new waiters wait on the other index
+                    awaitJobEmpty[i].complete(null); // complete waiting and reset
+                    awaitJobEmpty[i] = new CompletableFuture();
+                }
             }
-
         }
 
     }
