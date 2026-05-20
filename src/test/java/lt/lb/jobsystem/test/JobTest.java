@@ -103,7 +103,7 @@ public class JobTest {
 
     @Test
     public void exclusiveInterestPointTest() throws InterruptedException {
-        ExecutorService exeServ = Executors.newFixedThreadPool(16);
+        ExecutorService exeServ = Executors.newFixedThreadPool(8);
 //        ExecutorService exeServ = Executors.newVirtualThreadPerTaskExecutor();
 
         for (int t = 0; t < 50; t++) {

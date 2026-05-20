@@ -7,17 +7,15 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentLinkedDeque;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
-import static com.github.laim0nas100.jobsystem.Job.DONE;
 import com.github.laim0nas100.jobsystem.events.JobEventListener;
 import com.github.laim0nas100.jobsystem.events.SystemJobEventName;
+import java.util.concurrent.locks.Condition;
+import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * Job executor with provided base executor. No cleanup is necessary. Job
@@ -36,8 +34,9 @@ public class JobExecutor {
     protected JobEventListener rescanJobs = (j, c, d) -> addScanRequest();
     protected final Map<Serializable, List<JobEventListener>> jobExecutorProvidedListeners;
 
-    protected final CompletableFuture[] awaitJobEmpty = new CompletableFuture[]{new CompletableFuture(), new CompletableFuture()};
-    protected final AtomicInteger flipper = new AtomicInteger(0);
+    protected final ReentrantLock lock = new ReentrantLock();
+    protected final Condition waiter = lock.newCondition();
+
     protected final AtomicInteger scanRequest = new AtomicInteger(0);
     protected final AtomicInteger inScan = new AtomicInteger(0);
     protected final int rescanThrottle;
@@ -154,7 +153,7 @@ public class JobExecutor {
 
     private void rescanJobsIter() {
         scanRequest.decrementAndGet();
-        inScan.incrementAndGet();
+        int scanning = inScan.incrementAndGet();
         try {
             Iterator<Job> iterator = jobs.iterator();
             while (iterator.hasNext()) {
@@ -175,7 +174,7 @@ public class JobExecutor {
                     if (job.isAborted()) {// cancelled and not executed
                         job.fireSystemEvent(SystemJobEventName.ON_ABORTED);
                     }
-                    if (job.trySetFlag(DONE)) {
+                    if (job.trySetFlag(Job.DONE)) {
                         job.fireSystemEvent(SystemJobEventName.ON_DONE);
                     }
                 } else if (!job.isExecuted() && !job.isScheduled() && job.canRun()) {
@@ -190,22 +189,23 @@ public class JobExecutor {
                 }
             }
         } finally {
-            inScan.decrementAndGet();
+            scanning = inScan.decrementAndGet();
         }
 
         int sr = scanRequest.get();
-        int is = inScan.get();
 
-        if (is == 0) {
-            if (sr > 0 && sr <= rescanThrottle) {
+        if (scanning == 0) {
+            if (sr > 0 && sr < rescanThrottle) {
                 addScanRequest();
             } else if (sr == 0 && isEmpty()) {
 
-                synchronized (flipper) {
-                    int i = flipper.getAndUpdate(u -> (u + 1) % 2);// new waiters wait on the other index
-                    awaitJobEmpty[i].complete(null); // complete waiting and reset
-                    awaitJobEmpty[i] = new CompletableFuture();
+                try {
+                    lock.lock();
+                    waiter.signalAll();
+                } finally {
+                    lock.unlock();
                 }
+
             }
         }
 
@@ -256,17 +256,16 @@ public class JobExecutor {
             return true;
         }
         try {
-            CompletableFuture fut;
-            synchronized (flipper) {
-                fut = awaitJobEmpty[flipper.get()];
+            lock.lock();
+            
+            if (isEmpty()) {
+                return true;
             }
             addScanRequest();
-
-            fut.get(time, unit);
-        } catch (ExecutionException | TimeoutException ex) {
-            return false;
+            return waiter.await(time, unit);
+        } finally {
+            lock.unlock();
         }
-        return true;
     }
 
     /**
