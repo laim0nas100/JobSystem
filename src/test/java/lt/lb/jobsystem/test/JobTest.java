@@ -106,9 +106,10 @@ public class JobTest {
         ExecutorService exeServ = Executors.newFixedThreadPool(8);
 //        ExecutorService exeServ = Executors.newVirtualThreadPerTaskExecutor();
 
-        for (int t = 0; t < 50; t++) {
+        for (int t = 0; t < 10; t++) {
 
-            JobExecutor executor = new ScheduledJobExecutor(exeServ);
+            JobExecutor executor = new ScheduledJobExecutor(500, TimeUnit.MILLISECONDS, 4, 2, exeServ);
+//            executor.getExecutorJobListeners().clear();// no listeners
             AtomicLong atomLong = new AtomicLong(0L);
             LongHolder longVal1 = new LongHolder(0L);
             LongHolder longVal2 = new LongHolder(0L);

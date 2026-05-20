@@ -15,6 +15,7 @@ import java.util.stream.Stream;
 import com.github.laim0nas100.jobsystem.events.JobEventListener;
 import com.github.laim0nas100.jobsystem.events.SystemJobEventName;
 import java.util.concurrent.locks.Condition;
+import java.util.concurrent.locks.LockSupport;
 import java.util.concurrent.locks.ReentrantLock;
 
 /**
@@ -39,6 +40,7 @@ public class JobExecutor {
 
     protected final AtomicInteger scanRequest = new AtomicInteger(0);
     protected final AtomicInteger inScan = new AtomicInteger(0);
+    protected final int rescanRequestThrottle;
     protected final int rescanThrottle;
 
     /**
@@ -46,17 +48,18 @@ public class JobExecutor {
      * @param exe Main executor
      */
     public JobExecutor(Executor exe) {
-        this(2, exe);
+        this(2, 2, exe);
     }
 
     /**
-     *
+     * @param requestThrottle how many rescan requests can queue up
      * @param rescanThrottle how many concurrent rescan jobs can be happening (2
      * at least)
      * @param exe Main executor
      */
-    public JobExecutor(int rescanThrottle, Executor exe) {
+    public JobExecutor(int requestThrottle, int rescanThrottle, Executor exe) {
         this.exe = exe;
+        this.rescanRequestThrottle = Math.max(2, requestThrottle);
         this.rescanThrottle = Math.max(2, rescanThrottle);
         this.jobExecutorProvidedListeners = defaultListenerMap();
     }
@@ -124,7 +127,7 @@ public class JobExecutor {
     }
 
     protected void addScanRequest() {
-        if (scanRequest.incrementAndGet() <= rescanThrottle) {
+        if (scanRequest.incrementAndGet() <= rescanRequestThrottle) {
             try {
                 exe.execute(this::rescanJobsIter);
             } catch (Throwable ex) {
@@ -152,9 +155,17 @@ public class JobExecutor {
     }
 
     private void rescanJobsIter() {
-        scanRequest.decrementAndGet();
         int scanning = inScan.incrementAndGet();
+        int request = scanRequest.decrementAndGet();
+
         try {
+            if (scanning > 1) {
+                if (scanning > rescanThrottle && request > 1) {
+                    return;
+                }
+                LockSupport.parkNanos(1L << Math.min(scanning, 20)); // reduce congestion
+            }
+
             Iterator<Job> iterator = jobs.iterator();
             while (iterator.hasNext()) {
                 Job job = iterator.next();
@@ -195,7 +206,7 @@ public class JobExecutor {
         int sr = scanRequest.get();
 
         if (scanning == 0) {
-            if (sr > 0 && sr < rescanThrottle) {
+            if (sr > 0 && sr < rescanRequestThrottle) {
                 addScanRequest();
             } else if (sr == 0 && isEmpty()) {
 
@@ -257,7 +268,7 @@ public class JobExecutor {
         }
         try {
             lock.lock();
-            
+
             if (isEmpty()) {
                 return true;
             }
