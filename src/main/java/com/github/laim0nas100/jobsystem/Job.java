@@ -101,7 +101,7 @@ public class Job<T> implements RunnableFuture<T> {
      * @param call
      */
     public Job(Callable<T> call) {
-        this(Job.getNextID() + "-Job", call);
+        this(Job.getNextID(), call);
     }
 
     /**
