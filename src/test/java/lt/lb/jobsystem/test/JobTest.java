@@ -106,7 +106,7 @@ public class JobTest {
         ExecutorService exeServ = Executors.newFixedThreadPool(8);
 //        ExecutorService exeServ = Executors.newVirtualThreadPerTaskExecutor();
 
-        for (int t = 0; t < 10; t++) {
+        for (int t = 0; t < 25; t++) {
 
             JobExecutor executor = new ScheduledJobExecutor(500, TimeUnit.MILLISECONDS, 4, 2, exeServ);
 //            executor.getExecutorJobListeners().clear();// no listeners
@@ -115,8 +115,8 @@ public class JobTest {
             LongHolder longVal2 = new LongHolder(0L);
             Random rng = new Random();
 
-            Integer jobs = rng.nextInt(5) + 20;
-            int middle = rng.nextInt(jobs - 10) + 5;
+            Integer jobs = rng.nextInt(10) + 50;
+            int middle = rng.nextInt(jobs/4) + jobs/2;
 
             long range = rng.nextInt(50000) + 50000;
 

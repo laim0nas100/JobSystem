@@ -173,23 +173,23 @@ public class JobExecutor {
                     continue;
                 }
                 if (!job.isPossibleToRun()) {
-                    if (job.trySetFlag(Job.DISCARDED)) {
+                    if (job.state.trySetFlag(JobState.DISCARDED)) {
                         iterator.remove();
                         job.fireSystemEvent(SystemJobEventName.ON_DISCARDED);
                     } else { // job was allready discarded but reinserted so don't fire event again
-                        if (job.trySetFlag(Job.REPEATED_DISCARD)) { // thread safety
+                        if (job.state.trySetFlag(JobState.REPEATED_DISCARD)) { // thread safety
                             iterator.remove();
-                            job.clearFlag(Job.REPEATED_DISCARD);
+                            job.state.clearFlag(JobState.REPEATED_DISCARD);
                         }
                     }
                     if (job.isAborted()) {// cancelled and not executed
                         job.fireSystemEvent(SystemJobEventName.ON_ABORTED);
                     }
-                    if (job.trySetFlag(Job.DONE)) {
+                    if (job.state.trySetFlag(JobState.DONE)) {
                         job.fireSystemEvent(SystemJobEventName.ON_DONE);
                     }
                 } else if (!job.isExecuted() && !job.isScheduled() && job.canRun()) {
-                    if (job.trySetFlag(Job.SCHEDULED)) {
+                    if (job.state.trySetFlag(JobState.SCHEDULED)) {
                         job.fireSystemEvent(SystemJobEventName.ON_SCHEDULED);
                         try {
                             //we dont control executor, so just in case it is bad
