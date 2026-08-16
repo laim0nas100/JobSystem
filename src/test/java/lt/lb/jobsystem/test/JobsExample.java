@@ -85,7 +85,7 @@ public class JobsExample {
     }
 
     public static void main(String... args) throws Exception {
-        JobExecutor exe = new ScheduledJobExecutor(executor);
+        JobExecutor exe = new JobExecutor(executor);
         List<Job> jobs = new ArrayList<>();
 
         Job j0 = makeJob("0", jobs);
@@ -97,6 +97,8 @@ public class JobsExample {
         Job j6 = makeJob("6", jobs);
         Job j7 = makeJob("7", jobs);
 
+        
+//        j3.cancel(true);
         j0.chainForward(j1).chainForward(j2).chainForward(j3);
         j1.chainForward(j4).chainForward(j5);
         j2.chainForward(j6);

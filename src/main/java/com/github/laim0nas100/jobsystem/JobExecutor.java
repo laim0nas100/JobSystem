@@ -154,7 +154,7 @@ public class JobExecutor {
         addScanRequest();
     }
 
-    private void rescanJobsIter() {
+    protected void rescanJobsIter() {
         int scanning = inScan.incrementAndGet();
         int request = scanRequest.decrementAndGet();
 
@@ -206,10 +206,7 @@ public class JobExecutor {
         int sr = scanRequest.get();
 
         if (scanning == 0) {
-            if (sr > 0 && sr < rescanRequestThrottle) {
-                addScanRequest();
-            } else if (sr == 0 && isEmpty()) {
-
+            if (sr == 0 && isEmpty()) {
                 try {
                     lock.lock();
                     waiter.signalAll();

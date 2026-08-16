@@ -8,7 +8,7 @@ import java.util.concurrent.TimeUnit;
 /**
  * Job executor with provided base executor. Cleanup (shutdown) is necessary.
  * Job scheduling uses same provided executor (usually the same work thread
- * after job was finished). Periodically (3 seconds by default) rescans jobs.
+ * after job was finished). Periodically (1 second by default) rescans jobs.
  *
  * @author laim0nas100
  */
