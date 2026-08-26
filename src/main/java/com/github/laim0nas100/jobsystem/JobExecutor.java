@@ -26,18 +26,18 @@ import java.util.concurrent.locks.ReentrantLock;
  * @author laim0nas100
  */
 public class JobExecutor {
-
+    
     protected Executor exe;
-
+    
     protected boolean isShutdown = false;
     protected Collection<Job> jobs = new ConcurrentLinkedDeque<>();
-
+    
     protected JobEventListener rescanJobs = (j, c, d) -> addScanRequest();
     protected final Map<Serializable, List<JobEventListener>> jobExecutorProvidedListeners;
-
+    
     protected final ReentrantLock lock = new ReentrantLock();
     protected final Condition waiter = lock.newCondition();
-
+    
     protected final AtomicInteger scanRequest = new AtomicInteger(0);
     protected final AtomicInteger inScan = new AtomicInteger(0);
     protected final int rescanRequestThrottle;
@@ -63,14 +63,14 @@ public class JobExecutor {
         this.rescanThrottle = Math.max(2, rescanThrottle);
         this.jobExecutorProvidedListeners = defaultListenerMap();
     }
-
+    
     protected Map<Serializable, List<JobEventListener>> defaultListenerMap() {
         Map<Serializable, List<JobEventListener>> map = new HashMap<>();
         List<JobEventListener> listFailed = new ArrayList<>(1);
         listFailed.add(rescanJobs);
         List<JobEventListener> listDone = new ArrayList<>(1);
         listDone.add(rescanJobs);
-
+        
         map.put(SystemJobEventName.ON_FAILED_TO_START, listFailed);
         map.put(SystemJobEventName.ON_DONE, listDone);
         return map;
@@ -93,16 +93,16 @@ public class JobExecutor {
     /**
      * Submits all jobs
      *
-     * @param iter
+     * @param collection
      */
-    public void submitAll(Iterable<? extends Job> iter) {
+    public void submitAll(Collection<? extends Job> collection) {
         if (isShutdown) {
             throw new IllegalStateException("Shutdown was called");
         }
-        for (Job job : iter) {
+        for (Job job : collection) {
             job.executorSubmission(this);
-            jobs.add(job);
         }
+        jobs.addAll(collection);
         addScanRequest();
     }
 
@@ -121,43 +121,49 @@ public class JobExecutor {
         }
         addScanRequest();
     }
-
+    
     public Map<Serializable, List<JobEventListener>> getExecutorJobListeners() {
         return jobExecutorProvidedListeners;
     }
-
+    
     protected void addScanRequest() {
-        if (scanRequest.incrementAndGet() <= rescanRequestThrottle) {
-            try {
-                exe.execute(this::rescanJobsIter);
-            } catch (Throwable ex) {
-                rescanJobsIter();
+        for (;;) {
+            int get = scanRequest.get();
+            if (get > rescanRequestThrottle) {
+                return; // don't even try, enough conjestion
             }
-
-        } else {
-            scanRequest.decrementAndGet();
+            if (scanRequest.compareAndSet(get, get + 1)) {
+                try {
+                    exe.execute(this::rescanJobsIter);
+                    //could be in shutdown, su just manually rescan the jobs in the same thread
+                } catch (Throwable ex) {
+                    rescanJobsIter();
+                }
+                return;
+            } else {
+                LockSupport.parkNanos(1);
+            }
         }
-
     }
 
     /**
-     * Rescans after a job becomes done or a new job is submitted. Schedule
+     * Re-scans after a job becomes done or a new job is submitted. Schedule
      * ready jobs and discard discardable. If no more jobs are left, completes
      * emptiness waiter.
      *
      * Doesn't run automatically. If you are using special dependencies, for
      * example "run only if current day is Christmas", it will not check every
-     * day. It's the responsibility of the user to rescan periodically if such
+     * day. It's the responsibility of the user to re0scan periodically if such
      * dependencies are used.
      */
     public void rescanJobs() {
         addScanRequest();
     }
-
+    
     protected void rescanJobsIter() {
         int scanning = inScan.incrementAndGet();
         int request = scanRequest.decrementAndGet();
-
+        
         try {
             if (scanning > 1) {
                 if (scanning > rescanThrottle && request > 1) {
@@ -165,7 +171,7 @@ public class JobExecutor {
                 }
                 LockSupport.parkNanos(1L << Math.min(scanning, 20)); // reduce congestion
             }
-
+            
             Iterator<Job> iterator = jobs.iterator();
             while (iterator.hasNext()) {
                 Job job = iterator.next();
@@ -188,11 +194,11 @@ public class JobExecutor {
                     if (job.state.trySetFlag(JobState.DONE)) {
                         job.fireSystemEvent(SystemJobEventName.ON_DONE);
                     }
-                } else if (!job.isExecuted() && !job.isScheduled() && job.canRun()) {
+                } else if (!job.isScheduled() && job.allDependenciesCompleted()) {
                     if (job.state.trySetFlag(JobState.SCHEDULED)) {
                         job.fireSystemEvent(SystemJobEventName.ON_SCHEDULED);
                         try {
-                            //we dont control executor, so just in case it is bad
+                            //we dont control executor, so just in case it is bad or in shutdown
                             exe.execute(job);
                         } catch (Throwable t) {
                         }
@@ -202,9 +208,9 @@ public class JobExecutor {
         } finally {
             scanning = inScan.decrementAndGet();
         }
-
+        
         int sr = scanRequest.get();
-
+        
         if (scanning == 0) {
             if (sr == 0 && isEmpty()) {
                 try {
@@ -213,10 +219,9 @@ public class JobExecutor {
                 } finally {
                     lock.unlock();
                 }
-
+                
             }
         }
-
     }
 
     /**
@@ -230,7 +235,7 @@ public class JobExecutor {
             }
         }
         return true;
-
+        
     }
 
     /**
@@ -265,7 +270,7 @@ public class JobExecutor {
         }
         try {
             lock.lock();
-
+            
             if (isEmpty()) {
                 return true;
             }
@@ -306,5 +311,5 @@ public class JobExecutor {
         shutdown();
         return awaitTermination(time, unit);
     }
-
+    
 }

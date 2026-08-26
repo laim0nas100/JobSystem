@@ -6,13 +6,11 @@ import com.github.laim0nas100.jobsystem.Job;
 /**
  *
  * @author laim0nas100
- * @param <T>
+ * @param <T> Job result
+ * @param <C> classifier type
  */
-public interface JobEventListener<T> {
+public interface JobEventListener<T,C> {
 
-//    public void onEvent(JobEvent<T> event);
-
-    public void onEvent(Job<T> job, Object classifier, Optional<T> data);
-    
+    public void onEvent(Job<T> job, C classifier, Optional<T> data);
     
 }

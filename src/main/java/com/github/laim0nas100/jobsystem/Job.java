@@ -160,7 +160,7 @@ public class Job<T> implements RunnableFuture<T> {
      * cancel even if task is done.
      */
     public void cancel() {
-        this.cancel(true, true);
+        cancel(true, true);
     }
 
     /**
@@ -211,15 +211,40 @@ public class Job<T> implements RunnableFuture<T> {
      * satisfied)
      */
     public boolean canRun() {
-
         if (this.isDone()) {
             return false;
         }
+        return allDependenciesCompleted();
+    }
+    /**
+     *
+     * @return whether all dependencies are
+     * completed
+     */
+    public boolean allDependenciesCompleted(){
         if (doBefore == null) {
             return true;
         }
         for (Dependency dep : this.doBefore) {
             if (!dep.isCompleted(this)) {
+                return false;
+            }
+        }
+        return true;
+    }
+    
+    /**
+     *
+     * @return whether all dependencies are
+     * possible
+     */
+    public boolean allDependenciesPossible(){
+        if(doBefore == null){
+            return true;
+        }
+        
+        for (Dependency dep : this.doBefore) {
+            if (!dep.isPossible()) {
                 return false;
             }
         }
@@ -235,15 +260,7 @@ public class Job<T> implements RunnableFuture<T> {
         if (isRemovable()) {
             return false;
         }
-        if (doBefore == null) {
-            return true;
-        }
-        for (Dependency dep : this.doBefore) {
-            if (!dep.isPossible()) {
-                return false;
-            }
-        }
-        return true;
+        return allDependenciesPossible();
     }
 
     /**
@@ -485,7 +502,7 @@ public class Job<T> implements RunnableFuture<T> {
      */
     @Override
     public void run() {
-        if (isExecuted()) {
+        if (isExecuted()) { // manually ran this job again, should reject
             return;
         }
         if (!canRun()) {
@@ -630,9 +647,5 @@ public class Job<T> implements RunnableFuture<T> {
                 }
             }
         }
-    }
-
-    public Runnable asRunnable() {
-        return this::run;
     }
 }

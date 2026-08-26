@@ -8,7 +8,7 @@ import java.util.concurrent.ExecutionException;
  * Main documentation to understand the event loop.
  *
  * Job System events. Job System uses ON_DONE and ON_FAILED_TO_START listeners
- * to rescan for new jobs. Every event can be (and is intended to be) listened
+ * to re-scan for new jobs. Every event can be (and is intended to be) listened
  * and reacted to by users.
  *
  * @author laim0nas100
