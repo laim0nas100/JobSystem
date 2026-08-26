@@ -26,18 +26,18 @@ import java.util.concurrent.locks.ReentrantLock;
  * @author laim0nas100
  */
 public class JobExecutor {
-    
+
     protected Executor exe;
-    
+
     protected boolean isShutdown = false;
     protected Collection<Job> jobs = new ConcurrentLinkedDeque<>();
-    
+
     protected JobEventListener rescanJobs = (j, c, d) -> addScanRequest();
     protected final Map<Serializable, List<JobEventListener>> jobExecutorProvidedListeners;
-    
+
     protected final ReentrantLock lock = new ReentrantLock();
     protected final Condition waiter = lock.newCondition();
-    
+
     protected final AtomicInteger scanRequest = new AtomicInteger(0);
     protected final AtomicInteger inScan = new AtomicInteger(0);
     protected final int rescanRequestThrottle;
@@ -52,9 +52,9 @@ public class JobExecutor {
     }
 
     /**
-     * @param requestThrottle how many rescan requests can queue up
-     * @param rescanThrottle how many concurrent rescan jobs can be happening (2
-     * at least)
+     * @param requestThrottle how many re-scan requests can queue up
+     * @param rescanThrottle how many concurrent re-scan jobs can be happening
+     * (2 at least)
      * @param exe Main executor
      */
     public JobExecutor(int requestThrottle, int rescanThrottle, Executor exe) {
@@ -63,14 +63,14 @@ public class JobExecutor {
         this.rescanThrottle = Math.max(2, rescanThrottle);
         this.jobExecutorProvidedListeners = defaultListenerMap();
     }
-    
+
     protected Map<Serializable, List<JobEventListener>> defaultListenerMap() {
         Map<Serializable, List<JobEventListener>> map = new HashMap<>();
         List<JobEventListener> listFailed = new ArrayList<>(1);
         listFailed.add(rescanJobs);
         List<JobEventListener> listDone = new ArrayList<>(1);
         listDone.add(rescanJobs);
-        
+
         map.put(SystemJobEventName.ON_FAILED_TO_START, listFailed);
         map.put(SystemJobEventName.ON_DONE, listDone);
         return map;
@@ -121,11 +121,11 @@ public class JobExecutor {
         }
         addScanRequest();
     }
-    
+
     public Map<Serializable, List<JobEventListener>> getExecutorJobListeners() {
         return jobExecutorProvidedListeners;
     }
-    
+
     protected void addScanRequest() {
         for (;;) {
             int get = scanRequest.get();
@@ -134,10 +134,10 @@ public class JobExecutor {
             }
             if (scanRequest.compareAndSet(get, get + 1)) {
                 try {
-                    exe.execute(this::rescanJobsIter);
+                    exe.execute(this::rescanJobsByRequest);
                     //could be in shutdown, su just manually rescan the jobs in the same thread
                 } catch (Throwable ex) {
-                    rescanJobsIter();
+                    rescanJobsByRequest();
                 }
                 return;
             } else {
@@ -147,31 +147,40 @@ public class JobExecutor {
     }
 
     /**
-     * Re-scans after a job becomes done or a new job is submitted. Schedule
-     * ready jobs and discard discardable. If no more jobs are left, completes
-     * emptiness waiter.
+     * Add a re-scan request. Schedule ready jobs and discard removable. If no
+     * more jobs are left, completes emptiness waiter.
      *
      * Doesn't run automatically. If you are using special dependencies, for
      * example "run only if current day is Christmas", it will not check every
-     * day. It's the responsibility of the user to re0scan periodically if such
+     * day. It's the responsibility of the user to re-scan periodically if such
      * dependencies are used.
      */
     public void rescanJobs() {
         addScanRequest();
     }
-    
-    protected void rescanJobsIter() {
+
+    protected void rescanJobsByRequest() {
+        rescanJobsLogic(true);
+    }
+
+    /**
+     * Re-scan implementation.
+     *
+     * @param byRequest wether to respect the throttle and decrement scanRequest
+     * counter
+     */
+    protected void rescanJobsLogic(boolean byRequest) {
         int scanning = inScan.incrementAndGet();
-        int request = scanRequest.decrementAndGet();
-        
+
         try {
-            if (scanning > 1) {
+            if (byRequest) {
+                int request = scanRequest.decrementAndGet();
                 if (scanning > rescanThrottle && request > 1) {
                     return;
                 }
                 LockSupport.parkNanos(1L << Math.min(scanning, 20)); // reduce congestion
             }
-            
+
             Iterator<Job> iterator = jobs.iterator();
             while (iterator.hasNext()) {
                 Job job = iterator.next();
@@ -208,18 +217,15 @@ public class JobExecutor {
         } finally {
             scanning = inScan.decrementAndGet();
         }
-        
-        int sr = scanRequest.get();
-        
+
         if (scanning == 0) {
-            if (sr == 0 && isEmpty()) {
+            if ((!byRequest || scanRequest.get() == 0) && isEmpty()) {
                 try {
                     lock.lock();
                     waiter.signalAll();
                 } finally {
                     lock.unlock();
                 }
-                
             }
         }
     }
@@ -235,7 +241,7 @@ public class JobExecutor {
             }
         }
         return true;
-        
+
     }
 
     /**
@@ -270,7 +276,7 @@ public class JobExecutor {
         }
         try {
             lock.lock();
-            
+
             if (isEmpty()) {
                 return true;
             }
@@ -311,5 +317,5 @@ public class JobExecutor {
         shutdown();
         return awaitTermination(time, unit);
     }
-    
+
 }

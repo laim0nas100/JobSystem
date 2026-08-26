@@ -108,7 +108,7 @@ public class JobTest {
 
         for (int t = 0; t < 25; t++) {
 
-            JobExecutor executor = new ScheduledJobExecutor(500, TimeUnit.MILLISECONDS, 4, 2, exeServ);
+            JobExecutor executor = new ScheduledJobExecutor(200, TimeUnit.MILLISECONDS, 4, 2, exeServ);
 //            executor.getExecutorJobListeners().clear();// no listeners
             AtomicLong atomLong = new AtomicLong(0L);
             LongHolder longVal1 = new LongHolder(0L);
