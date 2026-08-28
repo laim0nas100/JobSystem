@@ -1,5 +1,6 @@
 package com.github.laim0nas100.jobsystem;
 
+import com.github.laim0nas100.jobsystem.events.SystemJobEventName;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.LockSupport;
 
@@ -8,6 +9,7 @@ import java.util.concurrent.locks.LockSupport;
  * @author laim0nas100
  */
 public class JobState {
+
     public final AtomicInteger flags = new AtomicInteger(0);
 
     // Bit constants
@@ -36,7 +38,11 @@ public class JobState {
             | INTERRUPTED
             | DONE;
     
-    
+
+    public int getFlags() {
+        return flags.get();
+    }
+
     public boolean trySetFlag(int flag) {
         int current;
         int updated;
@@ -125,7 +131,11 @@ public class JobState {
     }
 
     public boolean hasFlag(int flag) {
-        return (flags.get() & flag) != 0;
+        return hasFlag(flags.get(), flag);
+    }
+
+    public static boolean hasFlag(int bits, int flag) {
+        return (bits & flag) != 0;
     }
 
     public int incrementFailedToStart() {
@@ -152,43 +162,77 @@ public class JobState {
         } while (true);
 
     }
-    
+
     /**
-     * {@link lt.lb.jobsystem.events.SystemJobEventName#ON_FAILED_TO_START}
+     * {@link SystemJobEventName#ON_FAILED_TO_START}
      *
      * @return
      */
     public int getFailedToStart() {
-        return (flags.get() >>> FAILED_SHIFT);
+        return getFailedToStart(flags.get());
     }
-    
+
+    /**
+     * {@link SystemJobEventName#ON_FAILED_TO_START}
+     *
+     * @return
+     */
+    public static int getFailedToStart(int bits) {
+        return (bits >>> FAILED_SHIFT);
+    }
+
     /**
      * Returns if discarded or done.
      *
      * @return
      */
     public boolean isRemovable() {
-        return (flags.get() & REMOVABLE_MASK) != 0;
+        return isRemovable(flags.get());
     }
-    
+
     /**
-     * Returns if isExecuted and done.
+     * Returns if discarded or done.
+     *
+     * @return
+     */
+    public static boolean isRemovable(int bits) {
+        return (bits & REMOVABLE_MASK) != 0;
+    }
+
+    /**
+     * Returns if isExecuted and done. {@link SystemJobEventName#ON_ATTEMPTED}
      *
      * @return
      */
     public boolean isAttempted() {
-        int bits = flags.get();
+        return isAttempted(flags.get());
+    }
+
+    /**
+     * Returns if isExecuted and done. {@link SystemJobEventName#ON_ATTEMPTED}
+     *
+     * @return
+     */
+    public static boolean isAttempted(int bits) {
         return (bits & JobState.EXECUTED) != 0
                 && (bits & JobState.DONE) != 0;
     }
-    
-     /**
-     * {@link lt.lb.jobsystem.events.SystemJobEventName#ON_ABORTED}
+
+    /**
+     * {@link SystemJobEventName#ON_ABORTED}
      *
      * @return
      */
     public boolean isAborted() {
-        int bits = flags.get();
+        return isAborted(flags.get());
+    }
+
+    /**
+     * {@link SystemJobEventName#ON_ABORTED}
+     *
+     * @return
+     */
+    public static boolean isAborted(int bits) {
         return (bits & JobState.CANCELLED) != 0
                 && (bits & JobState.EXECUTED) == 0;
     }

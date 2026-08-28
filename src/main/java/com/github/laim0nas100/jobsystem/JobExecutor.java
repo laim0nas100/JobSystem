@@ -187,7 +187,15 @@ public class JobExecutor {
                 if (job == null) {
                     continue;
                 }
-                if (!job.isPossibleToRun()) {
+                int flags = job.state.getFlags();
+                if (JobState.hasFlag(flags, JobState.RUNNING)) {
+                    continue;
+                }
+                // not running, maybe scheduled and not executed yet?
+                if (JobState.hasFlag(flags, JobState.SCHEDULED) && !JobState.hasFlag(flags, JobState.EXECUTED)) {
+                    continue;
+                }
+                if(JobState.isRemovable(flags) || !job.allDependenciesPossible()){
                     if (job.state.trySetFlag(JobState.DISCARDED)) {
                         iterator.remove();
                         job.fireSystemEvent(SystemJobEventName.ON_DISCARDED);
@@ -197,19 +205,20 @@ public class JobExecutor {
                             job.state.clearFlag(JobState.REPEATED_DISCARD);
                         }
                     }
-                    if (job.isAborted()) {// cancelled and not executed
+                    if (JobState.isAborted(flags)) {// cancelled and not executed
                         job.fireSystemEvent(SystemJobEventName.ON_ABORTED);
                     }
                     if (job.state.trySetFlag(JobState.DONE)) {
                         job.fireSystemEvent(SystemJobEventName.ON_DONE);
                     }
-                } else if (!job.isScheduled() && job.allDependenciesCompleted()) {
+                } else if (!JobState.hasFlag(flags, JobState.SCHEDULED) && job.allDependenciesCompleted()) {
                     if (job.state.trySetFlag(JobState.SCHEDULED)) {
                         job.fireSystemEvent(SystemJobEventName.ON_SCHEDULED);
                         try {
                             //we dont control executor, so just in case it is bad or in shutdown
                             exe.execute(job);
                         } catch (Throwable t) {
+                            job.run(); // run some straggling jobs in the same thread
                         }
                     }
                 }
