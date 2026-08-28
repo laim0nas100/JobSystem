@@ -37,7 +37,6 @@ public class JobState {
             | EXCEPTIONAL
             | INTERRUPTED
             | DONE;
-    
 
     public int getFlags() {
         return flags.get();
@@ -182,7 +181,8 @@ public class JobState {
     }
 
     /**
-     * Returns if discarded or done.
+     * Returns if job is removable from the job list. Nothing else can be done
+     * with it.
      *
      * @return
      */
@@ -191,7 +191,8 @@ public class JobState {
     }
 
     /**
-     * Returns if discarded or done.
+     * Returns if job is removable from the job list. Nothing else can be done
+     * with it.
      *
      * @return
      */

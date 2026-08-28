@@ -31,10 +31,10 @@ public class SystemJobDependency extends AbstractJobDependency<SystemJobEventNam
                 return job.isRemovable() && job.getFailedToStart() == 0;
             }
             case ON_ABORTED: {
-                return job.isExecuted() || (job.isDiscarded() && !job.isAborted());
+                return job.isExecuted() || (job.isDiscarded() && !job.isAborted()); // was discarded without execution
             }
             case ON_INTERRUPTED: {
-                return job.isSuccessfull() || job.isExceptional() || (job.isDone() && !job.isInterrupted());
+                return job.isRemovable() && !job.isInterrupted();
             }
             case ON_SCHEDULED: {
                 return job.isRemovable() && !job.isScheduled();
