@@ -36,7 +36,7 @@ public class Job<T> implements RunnableFuture<T> {
     public final Serializable id;
 
     protected EventListeners listeners = new EventListeners();
-    
+
     protected JobState state = new JobState();
 
     protected Job canceledParent;
@@ -211,17 +211,17 @@ public class Job<T> implements RunnableFuture<T> {
      * satisfied)
      */
     public boolean canRun() {
-        if (this.isDone()) {
+        if (this.isRemovable()) {
             return false;
         }
         return allDependenciesCompleted();
     }
+
     /**
      *
-     * @return whether all dependencies are
-     * completed
+     * @return whether all dependencies are completed
      */
-    public boolean allDependenciesCompleted(){
+    public boolean allDependenciesCompleted() {
         if (doBefore == null) {
             return true;
         }
@@ -232,17 +232,16 @@ public class Job<T> implements RunnableFuture<T> {
         }
         return true;
     }
-    
+
     /**
      *
-     * @return whether all dependencies are
-     * possible
+     * @return whether all dependencies are possible
      */
-    public boolean allDependenciesPossible(){
-        if(doBefore == null){
+    public boolean allDependenciesPossible() {
+        if (doBefore == null) {
             return true;
         }
-        
+
         for (Dependency dep : this.doBefore) {
             if (!dep.isPossible()) {
                 return false;
@@ -502,7 +501,7 @@ public class Job<T> implements RunnableFuture<T> {
      */
     @Override
     public void run() {
-        if (isExecuted()) { // manually ran this job again, should reject
+        if (isExecuted()) { // ran this job again, should reject
             return;
         }
         if (!canRun()) {
@@ -529,13 +528,12 @@ public class Job<T> implements RunnableFuture<T> {
                 fireSystemEvent(SystemJobEventName.ON_EXCEPTIONAL, Optional.of(e));
             }
 
+            if (!state.tryClearFlag(JobState.RUNNING)) {
+                throw new IllegalStateException("After job:" + getID() + " ran, property running was set to false");
+            }
             fireSystemEvent(SystemJobEventName.ON_ATTEMPTED);
             if (state.trySetFlag(JobState.DONE)) {
                 fireSystemEvent(SystemJobEventName.ON_DONE);
-            }
-
-            if (!state.tryClearFlag(JobState.RUNNING)) {
-                throw new IllegalStateException("After job:" + getID() + " ran, property running was set to false");
             }
 
         }
