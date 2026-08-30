@@ -61,10 +61,11 @@ public class EventListeners {
     public List<JobEventListener> get(Serializable key) {
 
         List<JobEventListener> first = jobExecutorMap.getOrDefault(key, null);
-        List<JobEventListener> second = getMap(false).getOrDefault(key, null);
+        
         if (first == null) {
-            return second;
+            return getMap(false).getOrDefault(key, null);
         }
+        List<JobEventListener> second = getMap(false).getOrDefault(key, null);
         if (second == null) {
             return first;
         }
