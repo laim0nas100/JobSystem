@@ -68,7 +68,7 @@ public class MutuallyExclusivePointCAS implements Dependency {
         Job dibsedBy = dibsed.get();
         if (dibsedBy != null) {
             if (dibsedBy.isScheduled()) {
-                //other is allready scheduled, just let it be
+                //other is already scheduled, just let it be
                 return false;
             }
             // other has dibs, but not scheduled, maybe i can has dibs?
@@ -77,7 +77,7 @@ public class MutuallyExclusivePointCAS implements Dependency {
                     // just in case dibsed job became schedule
                     if (scheduled.compareAndSet(null, null)) {
                         return true;
-                    } else { // removed dibs after it was allready scheduled
+                    } else { // removed dibs after it was already scheduled
                         dibsed.set(dibsedBy);
                     }
                 }
