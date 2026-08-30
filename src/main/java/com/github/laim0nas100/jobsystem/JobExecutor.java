@@ -31,8 +31,14 @@ public class JobExecutor {
 
     protected boolean isShutdown = false;
     protected Collection<Job> jobs = new ConcurrentLinkedDeque<>();
+    protected AtomicInteger scheduledJobs = new AtomicInteger(0);
 
+    //referencable listeners that you can remove from default listener map
     protected JobEventListener rescanJobs = (j, c, d) -> addScanRequest();
+    protected JobEventListener reinsertJob = (j, c, d) -> jobs.add(j);
+    protected JobEventListener incrementScheduledJobs = (j, c, d) -> scheduledJobs.incrementAndGet();
+    protected JobEventListener decrementScheduledJobs = (j, c, d) -> scheduledJobs.decrementAndGet();
+
     protected final Map<Serializable, List<JobEventListener>> jobExecutorProvidedListeners;
 
     protected final ReentrantLock lock = new ReentrantLock();
@@ -66,13 +72,24 @@ public class JobExecutor {
 
     protected Map<Serializable, List<JobEventListener>> defaultListenerMap() {
         Map<Serializable, List<JobEventListener>> map = new HashMap<>();
-        List<JobEventListener> listFailed = new ArrayList<>(1);
-        listFailed.add(rescanJobs);
+        List<JobEventListener> listFailedStart = new ArrayList<>(3);
+        listFailedStart.add(reinsertJob);
+        listFailedStart.add(decrementScheduledJobs);
+        listFailedStart.add(rescanJobs);
+
         List<JobEventListener> listDone = new ArrayList<>(1);
         listDone.add(rescanJobs);
 
-        map.put(SystemJobEventName.ON_FAILED_TO_START, listFailed);
+        List<JobEventListener> listScheduled = new ArrayList<>(1);
+        listScheduled.add(incrementScheduledJobs);
+        
+        List<JobEventListener> listAttempted = new ArrayList<>(1);
+        listAttempted.add(decrementScheduledJobs);
+
+        map.put(SystemJobEventName.ON_FAILED_TO_START, listFailedStart);
         map.put(SystemJobEventName.ON_DONE, listDone);
+        map.put(SystemJobEventName.ON_SCHEDULED, listScheduled);
+        map.put(SystemJobEventName.ON_ATTEMPTED, listAttempted);
         return map;
     }
 
@@ -191,15 +208,15 @@ public class JobExecutor {
                 if (JobState.hasFlag(flags, JobState.RUNNING)) {
                     continue;
                 }
-                // not running, maybe scheduled and not executed yet?
+                // not running,  scheduled and not executed yet but was not yet removed by another thread?
                 if (JobState.hasFlag(flags, JobState.SCHEDULED) && !JobState.hasFlag(flags, JobState.EXECUTED)) {
                     continue;
                 }
-                if(JobState.isRemovable(flags) || !job.allDependenciesPossible()){
+                if (JobState.isRemovable(flags) || !job.allDependenciesPossible()) {
                     if (job.state.trySetFlag(JobState.DISCARDED)) {
                         iterator.remove();
                         job.fireSystemEvent(SystemJobEventName.ON_DISCARDED);
-                    } else { // job was allready discarded but reinserted so don't fire event again
+                    } else { // job was already discarded but reinserted so don't fire event again
                         if (job.state.trySetFlag(JobState.REPEATED_DISCARD)) { // thread safety
                             iterator.remove();
                             job.state.clearFlag(JobState.REPEATED_DISCARD);
@@ -213,6 +230,7 @@ public class JobExecutor {
                     }
                 } else if (!JobState.hasFlag(flags, JobState.SCHEDULED) && job.allDependenciesCompleted()) {
                     if (job.state.trySetFlag(JobState.SCHEDULED)) {
+                        iterator.remove();
                         job.fireSystemEvent(SystemJobEventName.ON_SCHEDULED);
                         try {
                             //we dont control executor, so just in case it is bad or in shutdown
@@ -244,6 +262,9 @@ public class JobExecutor {
      * @return true if no more jobs left.
      */
     public boolean isEmpty() {
+        if (scheduledJobs.get() > 0) {
+            return false;
+        }
         for (Job j : jobs) {
             if (j != null) {
                 return false;
@@ -255,7 +276,7 @@ public class JobExecutor {
 
     /**
      *
-     * @return Current non-discarded Job stream.
+     * @return Current pending Job stream.
      */
     public Stream<Job> getJobStream() {
         return jobs.stream();
