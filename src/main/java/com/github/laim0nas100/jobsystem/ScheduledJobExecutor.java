@@ -20,7 +20,7 @@ public class ScheduledJobExecutor extends JobExecutor {
      * @param exe Main executor
      */
     public ScheduledJobExecutor(Executor exe) {
-        this(1, TimeUnit.SECONDS, 3, 3, exe);
+        this(1, TimeUnit.SECONDS, 3, 3, true, exe);
     }
 
     /**
@@ -28,10 +28,11 @@ public class ScheduledJobExecutor extends JobExecutor {
      * @param unit rescan period unit
      * @param requestThrottle how many concurrent rescan requests can queue up
      * @param rescanThrottle how many concurrent rescan jobs can be happening
+     * @param optimisticSubmit optimistic submit strategy
      * @param exe Main executor
      */
-    public ScheduledJobExecutor(long time, TimeUnit unit, int requestThrottle, int rescanThrottle , Executor exe) {
-        super(requestThrottle, rescanThrottle, exe);
+    public ScheduledJobExecutor(long time, TimeUnit unit, int requestThrottle, int rescanThrottle, boolean optimisticSubmit, Executor exe) {
+        super(requestThrottle, rescanThrottle, optimisticSubmit, exe);
         service.scheduleAtFixedRate(() -> rescanJobs(), time, time, unit);
     }
 

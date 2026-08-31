@@ -14,6 +14,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
 import com.github.laim0nas100.jobsystem.events.JobEventListener;
 import com.github.laim0nas100.jobsystem.events.SystemJobEventName;
+import java.util.Objects;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.LockSupport;
 import java.util.concurrent.locks.ReentrantLock;
@@ -48,25 +49,29 @@ public class JobExecutor {
     protected final AtomicInteger inScan = new AtomicInteger(0);
     protected final int rescanRequestThrottle;
     protected final int rescanThrottle;
+    protected final boolean optimisticSubmit;
 
     /**
      *
      * @param exe Main executor
      */
     public JobExecutor(Executor exe) {
-        this(2, 2, exe);
+        this(2, 2, true, exe);
     }
 
     /**
      * @param requestThrottle how many re-scan requests can queue up
      * @param rescanThrottle how many concurrent re-scan jobs can be happening
      * (2 at least)
+     * @param optimisticSubmit optimistic submit strategy (try to pass the job
+     * straight to the main executor if all dependencies ok)
      * @param exe Main executor
      */
-    public JobExecutor(int requestThrottle, int rescanThrottle, Executor exe) {
-        this.exe = exe;
+    public JobExecutor(int requestThrottle, int rescanThrottle, boolean optimisticSubmit, Executor exe) {
         this.rescanRequestThrottle = Math.max(2, requestThrottle);
         this.rescanThrottle = Math.max(2, rescanThrottle);
+        this.optimisticSubmit = optimisticSubmit;
+        this.exe = Objects.requireNonNull(exe);
         this.jobExecutorProvidedListeners = defaultListenerMap();
     }
 
@@ -147,24 +152,35 @@ public class JobExecutor {
     }
 
     /**
-     * Add job in job list. Does not become scheduled instantly.
+     * Submits the job using the default optimistic strategy.
      *
      * @param job
      */
     public void submit(Job job) {
+        submit(job, optimisticSubmit);
+    }
+
+    /**
+     * Submits the job overriding the default optimistic strategy.
+     *
+     * @param job
+     */
+    public void submit(Job job, boolean optimistic) {
         if (isShutdown) {
             throw new IllegalStateException("Shutdown was called");
         }
         job.executorSubmission(this);
-
-        if (scheduleOrQueue(job)) {
+        if (!optimistic) {
+            jobs.add(job);
+            addScanRequest();
+        } else if (scheduleOrQueue(job)) {
             addScanRequest();
         }
-
     }
 
     /**
-     * Submits all jobs
+     * Submits all jobs. Appends all to the collection and adds a scan request.
+     * Ignores optimistic submit strategy.
      *
      * @param collection
      */
@@ -180,7 +196,7 @@ public class JobExecutor {
     }
 
     /**
-     * Submits all jobs
+     * Submits all jobs using the default optimistic strategy.
      *
      * @param jobArray
      */
@@ -190,7 +206,11 @@ public class JobExecutor {
         }
         for (Job job : jobArray) {
             job.executorSubmission(this);
-            scheduleOrQueue(job);
+            if (!optimisticSubmit) {
+                jobs.add(job);
+            } else {
+                scheduleOrQueue(job);
+            }
         }
         addScanRequest();
     }

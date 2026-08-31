@@ -33,14 +33,7 @@ public class JobSystemComprehensiveTest {
     @Before
     public void setup() {
         executor = Executors.newFixedThreadPool(8);
-        jobExecutor = new JobExecutor(executor) {
-            @Override
-            public void rescanJobs() {
-                rescanJobsLogic(false); // make sure the rescan is instant
-//                super.rescanJobs(); 
-            }
-
-        };
+        jobExecutor = new JobExecutor(executor);
     }
 
     /**
@@ -339,7 +332,7 @@ public class JobSystemComprehensiveTest {
     @Test
     public void testScheduledExecutorWithTimeDependency() throws InterruptedException {
         ExecutorService scheduledExec = Executors.newFixedThreadPool(4);
-        ScheduledJobExecutor schExecutor = new ScheduledJobExecutor(100, TimeUnit.MILLISECONDS, 3, 3, scheduledExec);
+        ScheduledJobExecutor schExecutor = new ScheduledJobExecutor(100, TimeUnit.MILLISECONDS, 3, 3,false, scheduledExec);
 
         long startTime = System.currentTimeMillis();
         AtomicBoolean jobExecuted = new AtomicBoolean(false);
@@ -509,7 +502,7 @@ public class JobSystemComprehensiveTest {
     public void testComplexStressScenario() throws InterruptedException {
         int jobCount = 200;
         ExecutorService stressExecutor = Executors.newFixedThreadPool(16);
-        JobExecutor stressJobExecutor = new JobExecutor(4, 4, stressExecutor);
+        JobExecutor stressJobExecutor = new JobExecutor(4, 4, false, stressExecutor);
 
         AtomicInteger completed = new AtomicInteger(0);
         AtomicInteger eventsFired = new AtomicInteger(0);
