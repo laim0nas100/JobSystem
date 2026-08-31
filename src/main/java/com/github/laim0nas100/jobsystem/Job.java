@@ -180,6 +180,11 @@ public class Job<T> implements RunnableFuture<T> {
         if (state.trySetFlag(JobState.CANCELLED)) {
             boolean canceledOk = task.cancel(interrupt);
             fireSystemEvent(SystemJobEventName.ON_CANCEL);
+            if (!isExecuted()) {
+                //cancelled and not executed
+                fireSystemEvent(SystemJobEventName.ON_ABORTED);
+            }
+
             if (propogate && doAfter != null) {
                 for (Job j : this.doAfter) {
                     j.canceledRoot = root;

@@ -82,7 +82,7 @@ public class JobExecutor {
 
         List<JobEventListener> listScheduled = new ArrayList<>(1);
         listScheduled.add(incrementScheduledJobs);
-        
+
         List<JobEventListener> listAttempted = new ArrayList<>(1);
         listAttempted.add(decrementScheduledJobs);
 
@@ -91,6 +91,59 @@ public class JobExecutor {
         map.put(SystemJobEventName.ON_SCHEDULED, listScheduled);
         map.put(SystemJobEventName.ON_ATTEMPTED, listAttempted);
         return map;
+    }
+
+    protected boolean scheduleOrQueue(Job job) {
+        return schedulerLogic(job, null, true);
+    }
+
+    protected boolean schedulerLogic(Job job, Iterator iterator, boolean insert) {
+        int flags = job.state.getFlags();
+        if (JobState.hasFlag(flags, JobState.RUNNING)) {
+            return false;
+        }
+        // not running, scheduled and not executed yet but was not yet removed by another thread?
+        if (JobState.hasFlag(flags, JobState.SCHEDULED) && !JobState.hasFlag(flags, JobState.EXECUTED)) {
+            return false;
+        }
+
+        if (JobState.isRemovable(flags) || !job.allDependenciesPossible()) {
+            if (job.state.trySetFlag(JobState.DISCARDED)) {
+                if (iterator != null) {
+                    iterator.remove();
+                }
+                job.fireSystemEvent(SystemJobEventName.ON_DISCARDED);
+            } else { // job was already discarded but reinserted so don't fire event again
+                if (job.state.trySetFlag(JobState.REPEATED_DISCARD)) { // thread safety
+                    if (iterator != null) {
+                        iterator.remove();
+                    }
+                    job.state.clearFlag(JobState.REPEATED_DISCARD);
+                }
+            }
+            if (job.state.trySetFlag(JobState.DONE)) {
+                job.fireSystemEvent(SystemJobEventName.ON_DONE);
+            }
+            return false;
+        } else if (!JobState.hasFlag(flags, JobState.SCHEDULED) && job.allDependenciesCompleted()) {
+            if (job.state.trySetFlag(JobState.SCHEDULED)) {
+                if (iterator != null) {
+                    iterator.remove();
+                }
+                job.fireSystemEvent(SystemJobEventName.ON_SCHEDULED);
+                try {
+                    //we dont control executor, so just in case it is bad or in shutdown
+                    exe.execute(job);
+                } catch (Throwable t) {
+                    job.run(); // run some straggling jobs in the same thread
+                }
+                return false;
+            }
+        }
+        if (insert) {
+            jobs.add(job);
+        }
+        return insert;
     }
 
     /**
@@ -103,8 +156,11 @@ public class JobExecutor {
             throw new IllegalStateException("Shutdown was called");
         }
         job.executorSubmission(this);
-        jobs.add(job);
-        addScanRequest();
+
+        if (scheduleOrQueue(job)) {
+            addScanRequest();
+        }
+
     }
 
     /**
@@ -134,7 +190,7 @@ public class JobExecutor {
         }
         for (Job job : jobArray) {
             job.executorSubmission(this);
-            jobs.add(job);
+            scheduleOrQueue(job);
         }
         addScanRequest();
     }
@@ -201,45 +257,10 @@ public class JobExecutor {
             Iterator<Job> iterator = jobs.iterator();
             while (iterator.hasNext()) {
                 Job job = iterator.next();
-                if (job == null) {
-                    continue;
+                if (job != null) {
+                    schedulerLogic(job, iterator, false);
                 }
-                int flags = job.state.getFlags();
-                if (JobState.hasFlag(flags, JobState.RUNNING)) {
-                    continue;
-                }
-                // not running,  scheduled and not executed yet but was not yet removed by another thread?
-                if (JobState.hasFlag(flags, JobState.SCHEDULED) && !JobState.hasFlag(flags, JobState.EXECUTED)) {
-                    continue;
-                }
-                if (JobState.isRemovable(flags) || !job.allDependenciesPossible()) {
-                    if (job.state.trySetFlag(JobState.DISCARDED)) {
-                        iterator.remove();
-                        job.fireSystemEvent(SystemJobEventName.ON_DISCARDED);
-                    } else { // job was already discarded but reinserted so don't fire event again
-                        if (job.state.trySetFlag(JobState.REPEATED_DISCARD)) { // thread safety
-                            iterator.remove();
-                            job.state.clearFlag(JobState.REPEATED_DISCARD);
-                        }
-                    }
-                    if (JobState.isAborted(flags)) {// cancelled and not executed
-                        job.fireSystemEvent(SystemJobEventName.ON_ABORTED);
-                    }
-                    if (job.state.trySetFlag(JobState.DONE)) {
-                        job.fireSystemEvent(SystemJobEventName.ON_DONE);
-                    }
-                } else if (!JobState.hasFlag(flags, JobState.SCHEDULED) && job.allDependenciesCompleted()) {
-                    if (job.state.trySetFlag(JobState.SCHEDULED)) {
-                        iterator.remove();
-                        job.fireSystemEvent(SystemJobEventName.ON_SCHEDULED);
-                        try {
-                            //we dont control executor, so just in case it is bad or in shutdown
-                            exe.execute(job);
-                        } catch (Throwable t) {
-                            job.run(); // run some straggling jobs in the same thread
-                        }
-                    }
-                }
+
             }
         } finally {
             scanning = inScan.decrementAndGet();
