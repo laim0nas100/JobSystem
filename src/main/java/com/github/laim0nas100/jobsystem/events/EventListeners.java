@@ -107,8 +107,6 @@ public class EventListeners {
      * Doesn't follow the conventional Map semantics where key removal reflects
      * on the map. Combines both key sets in a new set;
      *
-     * {@inheritDoc}
-     *
      * @return
      */
     public Set<Serializable> keySet() {

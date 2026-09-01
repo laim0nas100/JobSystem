@@ -25,10 +25,9 @@ public enum SystemJobEventName implements Serializable {
     /**
      * When Job becomes done.
      *
-     * (after attempted or discarded). The last possible event (unless the
-     * exceptional event happens inside it or same job was resubmitted). Always
-     * fires only once, unlike the discarded event. Can be fired inside a job,
-     * or by a JobExecutor.
+     * The last possible event (unless the
+     * exceptional event happens inside it or same job was resubmitted). Can be
+     * fired inside a job, or by a JobExecutor.
      */
     ON_DONE("onDone", true, true),
     /**
@@ -43,16 +42,17 @@ public enum SystemJobEventName implements Serializable {
      */
     ON_CANCEL("onCancel", true, false),
     /**
-     * When Job becomes fails with ExecutionExcption. Provides
+     * When Job becomes fails with ExecutionException. Provides
      * {@link ExecutionException} as data.
      */
     ON_EXCEPTIONAL("onExceptional", true, false),
     /**
-     * When Job becomes discarded by {@link lt.lb.jobsystem.JobExecutor}. Job
-     * can be discarded when it's done or any of its direct dependencies becomes
-     * impossible. Dependencies linked by listeners doesn't count.
+     * When Job becomes discarded by {@link lt.lb.jobsystem.JobExecutor} -
+     * removed from pending jobs collection when it cannot be ran during the
+     * scan. Discard event is skipped if the job successfully completes the
+     * cycle after being scheduled.
      */
-    ON_DISCARDED("onDiscarded", false, true),
+    ON_DISCARDED("onDiscarded", true, false),
     /**
      * When Job becomes successful. Logic ends normally.
      */
