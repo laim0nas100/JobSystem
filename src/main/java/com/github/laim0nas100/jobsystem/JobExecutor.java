@@ -104,7 +104,7 @@ public class JobExecutor {
 
     protected boolean schedulerLogic(Job job, Iterator iterator, boolean insert) {
         int flags = job.state.getFlags();
-        if (JobState.hasFlag(flags, JobState.RUNNING)) {
+        if (JobState.hasFlag(flags, JobState.RUNNING)) { // could be running or failing to start and flag not yet cleared
             return false;
         }
         // not running, scheduled and not executed yet but was not yet removed by another thread?

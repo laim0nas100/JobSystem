@@ -509,38 +509,45 @@ public class Job<T> implements RunnableFuture<T> {
         if (isExecuted()) { // ran this job again, should reject
             return;
         }
-        if (!canRun()) {
-            state.incrementFailedToStart();
-            fireSystemEvent(SystemJobEventName.ON_FAILED_TO_START);
-            state.clearFlag(JobState.SCHEDULED);
-            return;
-        }
-        if (state.trySetFlag(JobState.RUNNING)) { // ensure only one running instance
-            state.setFlag(JobState.EXECUTED);
-            jobThread = Thread.currentThread();
-            fireSystemEvent(SystemJobEventName.ON_EXECUTE);
+        boolean clearRunning = false;
+        try {
 
-            try {
-                runTask();
-                T result = task.get();
-                state.setFlag(JobState.SUCCESSFUL);
-                fireSystemEvent(SystemJobEventName.ON_SUCCESSFUL, Optional.ofNullable(result));
-            } catch (InterruptedException e) {
-                state.setFlag(JobState.INTERRUPTED);
-                fireSystemEvent(SystemJobEventName.ON_INTERRUPTED);
-            } catch (Throwable e) { // execution exception or cancellation exception
-                state.setFlag(JobState.EXCEPTIONAL);
-                fireSystemEvent(SystemJobEventName.ON_EXCEPTIONAL, Optional.of(e));
-            }
+            if (state.trySetFlag(JobState.RUNNING)) {
+                clearRunning = true;
+                if (!canRun()) {
+                    state.incrementFailedToStart();
+                    fireSystemEvent(SystemJobEventName.ON_FAILED_TO_START);
+                    state.clearFlag(JobState.SCHEDULED);
+                    
+                } else {
+                    state.setFlag(JobState.EXECUTED);
+                    jobThread = Thread.currentThread();
+                    fireSystemEvent(SystemJobEventName.ON_EXECUTE);
 
-            if (!state.tryClearFlag(JobState.RUNNING)) {
-                throw new IllegalStateException("After job:" + getID() + " ran, property running was set to false");
-            }
-            fireSystemEvent(SystemJobEventName.ON_ATTEMPTED);
-            if (state.trySetFlag(JobState.DONE)) {
-                fireSystemEvent(SystemJobEventName.ON_DONE);
-            }
+                    try {
+                        runTask();
+                        T result = task.get();
+                        state.setFlag(JobState.SUCCESSFUL);
+                        fireSystemEvent(SystemJobEventName.ON_SUCCESSFUL, Optional.ofNullable(result));
+                    } catch (InterruptedException e) {
+                        state.setFlag(JobState.INTERRUPTED);
+                        fireSystemEvent(SystemJobEventName.ON_INTERRUPTED);
+                    } catch (Throwable e) { // execution exception or cancellation exception
+                        state.setFlag(JobState.EXCEPTIONAL);
+                        fireSystemEvent(SystemJobEventName.ON_EXCEPTIONAL, Optional.of(e));
+                    }
 
+                    fireSystemEvent(SystemJobEventName.ON_ATTEMPTED);
+                    if (state.trySetFlag(JobState.DONE)) {
+                        fireSystemEvent(SystemJobEventName.ON_DONE);
+                    }
+                }
+
+            }
+        } finally {
+            if (clearRunning) {
+                state.tryClearFlag(JobState.RUNNING);
+            }
         }
 
     }
