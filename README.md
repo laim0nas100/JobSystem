@@ -3,5 +3,4 @@
 
 Complex task scheduling, ordering and orchestrating executor using event system.
 
-For quick explanation read [SystemJobEventName](https://github.com/laim0nas100/JobSystem/blob/master/src/main/java/com/github/laim0nas100/jobsystem/events/SystemJobEventName.java)
-
+For quick event explanation read [SystemJobEventName](https://github.com/laim0nas100/JobSystem/blob/master/src/main/java/com/github/laim0nas100/jobsystem/events/SystemJobEventName.java)

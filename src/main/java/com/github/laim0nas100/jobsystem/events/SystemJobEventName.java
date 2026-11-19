@@ -47,7 +47,7 @@ public enum SystemJobEventName implements Serializable {
      */
     ON_EXCEPTIONAL("onExceptional", true, false),
     /**
-     * When Job becomes discarded by {@link lt.lb.jobsystem.JobExecutor} -
+     * When Job becomes discarded by {@link JobExecutor} -
      * removed from pending jobs collection when it cannot be ran during the
      * scan. Discard event is skipped if the job successfully completes the
      * cycle after being scheduled.
@@ -58,7 +58,7 @@ public enum SystemJobEventName implements Serializable {
      */
     ON_SUCCESSFUL("onSuccessful", true, false),
     /**
-     * When Job becomes scheduled, by {@link lt.lb.jobsystem.JobExecutor}.
+     * When Job becomes scheduled, by {@link JobExecutor}.
      */
     ON_SCHEDULED("onScheduled", false, false),
     /**

@@ -268,7 +268,7 @@ public class Job<T> implements RunnableFuture<T> {
     }
 
     /**
-     * {@link lt.lb.jobsystem.events.SystemJobEventName#ON_CANCEL}
+     * {@link SystemJobEventName#ON_CANCEL}
      *
      * @return
      */
@@ -278,7 +278,7 @@ public class Job<T> implements RunnableFuture<T> {
     }
 
     /**
-     * {@link lt.lb.jobsystem.events.SystemJobEventName#ON_SUCCESSFUL}
+     * {@link SystemJobEventName#ON_SUCCESSFUL}
      *
      * @return
      */
@@ -287,7 +287,7 @@ public class Job<T> implements RunnableFuture<T> {
     }
 
     /**
-     * {@link lt.lb.jobsystem.events.SystemJobEventName#ON_EXCEPTIONAL}
+     * {@link SystemJobEventName#ON_EXCEPTIONAL}
      *
      * @return
      */
@@ -296,7 +296,7 @@ public class Job<T> implements RunnableFuture<T> {
     }
 
     /**
-     * {@link lt.lb.jobsystem.events.SystemJobEventName#ON_DISCARDED}
+     * {@link SystemJobEventName#ON_DISCARDED}
      *
      * @return
      */
@@ -313,7 +313,7 @@ public class Job<T> implements RunnableFuture<T> {
     }
 
     /**
-     * {@link lt.lb.jobsystem.events.SystemJobEventName#ON_SCHEDULED}
+     * {@link SystemJobEventName#ON_SCHEDULED}
      *
      * @return
      */
@@ -322,7 +322,7 @@ public class Job<T> implements RunnableFuture<T> {
     }
 
     /**
-     * {@link lt.lb.jobsystem.events.SystemJobEventName#ON_INTERRUPTED}
+     * {@link SystemJobEventName#ON_INTERRUPTED}
      *
      * @return
      */
@@ -331,7 +331,7 @@ public class Job<T> implements RunnableFuture<T> {
     }
 
     /**
-     * {@link lt.lb.jobsystem.events.SystemJobEventName#ON_ABORTED}
+     * {@link SystemJobEventName#ON_ABORTED}
      *
      * @return
      */
@@ -358,7 +358,7 @@ public class Job<T> implements RunnableFuture<T> {
     }
 
     /**
-     * {@link lt.lb.jobsystem.events.SystemJobEventName#ON_FAILED_TO_START}
+     * {@link SystemJobEventName#ON_FAILED_TO_START}
      *
      * @return
      */
@@ -385,7 +385,6 @@ public class Job<T> implements RunnableFuture<T> {
                 return chain;
             }
         }
-
     }
 
     /**
@@ -397,7 +396,7 @@ public class Job<T> implements RunnableFuture<T> {
     }
 
     /**
-     * {@link lt.lb.jobsystem.events.SystemJobEventName#ON_DONE}
+     * {@link SystemJobEventName#ON_DONE}
      *
      * @return
      */
@@ -407,7 +406,7 @@ public class Job<T> implements RunnableFuture<T> {
     }
 
     /**
-     * {@link lt.lb.jobsystem.events.SystemJobEventName#ON_EXECUTE}
+     * {@link SystemJobEventName#ON_EXECUTE}
      *
      * @return
      */
@@ -416,7 +415,7 @@ public class Job<T> implements RunnableFuture<T> {
     }
 
     /**
-     * {@link lt.lb.jobsystem.events.SystemJobEventName#ON_EXCEPTIONAL_EVENT}
+     * {@link SystemJobEventName#ON_EXCEPTIONAL_EVENT}
      *
      * @return
      */
